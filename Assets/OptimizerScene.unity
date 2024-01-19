@@ -159,10 +159,10 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 512, y: 512}
-  targetMode: 1
+  targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: garden
+  target3DCOLMAPFolder: boat
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
@@ -171,7 +171,7 @@ MonoBehaviour:
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
-  colmapOnePrimitivePerInitPoint: 0
+  colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 0.5
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
@@ -184,7 +184,7 @@ MonoBehaviour:
   pause: 0
   stepForward: 0
   displayMode: 0
-  separateFreeViewCamera: 1
+  separateFreeViewCamera: 0
   displayCatmullClarkControlCage: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.0005}
@@ -192,7 +192,7 @@ MonoBehaviour:
   doubleEveryXSteps: 500
   optimizer: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 1
+  optimSupersampling: 0.25
   doAlphaLoss: 1
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 16

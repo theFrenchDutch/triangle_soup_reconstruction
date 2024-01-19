@@ -1072,7 +1072,7 @@ public class MutationOptimizer : MonoBehaviour
 
 		if (targetMode == TargetMode.COLMAP)
 		{
-			string folderPath = Application.dataPath.Replace("/unity_mutation_optimizer/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
+			string folderPath = Application.dataPath.Replace("/triangle_soup_reconstruction/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
 			if (File.Exists(folderPath + "/sparse/0/images.bin") == true)
 				LoadAllCOLMAPDataFromBinaryFiles();
 			else if (File.Exists(folderPath + "/sparse/0/images.txt") == true)
@@ -1599,7 +1599,7 @@ public class MutationOptimizer : MonoBehaviour
 	public void LoadAllCOLMAPDataFromBinaryFiles()
 	{
 		// Load images extrinsics
-		string folderPath = Application.dataPath.Replace("/unity_mutation_optimizer/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
+		string folderPath = Application.dataPath.Replace("/triangle_soup_reconstruction/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
 		BinaryReader reader = new BinaryReader(File.Open(folderPath + "/sparse/0/images.bin", FileMode.Open, FileAccess.Read, FileShare.Read));
 		colmapImageCount = (int)reader.ReadUInt64();
 		colmapViewsTarget = new Texture2D[colmapImageCount];
@@ -1713,7 +1713,7 @@ public class MutationOptimizer : MonoBehaviour
 	public void LoadAllCOLMAPDataFromCustomBlenderTextFiles()
 	{
 		// Load images extrinsics
-		string folderPath = Application.dataPath.Replace("/unity_mutation_optimizer/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
+		string folderPath = Application.dataPath.Replace("/triangle_soup_reconstruction/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
 		TextReader reader = File.OpenText(folderPath + "/sparse/0/images.txt");
 		colmapImageCount = File.ReadAllLines(folderPath + "/sparse/0/images.txt").Length / 2;
 		colmapViewsTarget = new Texture2D[colmapImageCount];
@@ -1811,7 +1811,7 @@ public class MutationOptimizer : MonoBehaviour
 	public void LoadAllCOLMAPDataFromCustomBlenderTextFilesWriteLaurent()
 	{
 		// Load images extrinsics
-		string folderPath = Application.dataPath.Replace("/unity_mutation_optimizer/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
+		string folderPath = Application.dataPath.Replace("/triangle_soup_reconstruction/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
 		TextReader reader = File.OpenText(folderPath + "/sparse/0/images.txt");
 		StreamWriter writer = new StreamWriter(folderPath + "/sparse/0/images_custom.txt");
 		colmapImageCount = File.ReadAllLines(folderPath + "/sparse/0/images.txt").Length / 2;
@@ -1925,7 +1925,7 @@ public class MutationOptimizer : MonoBehaviour
 	public void ApplyMaskingToCOLMAPImages()
 	{
 		Material maskMaterial = new Material(Shader.Find("Custom/Masking"));
-		string folderPath = Application.dataPath.Replace("/unity_mutation_optimizer/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
+		string folderPath = Application.dataPath.Replace("/triangle_soup_reconstruction/Assets", "") + "/Datasets/" + target3DCOLMAPFolder;
 		for (int i = 0; i < colmapImageCount; i++)
 		{
 			Texture2D mask = new Texture2D(2, 2);
