@@ -1,0 +1,754 @@
+﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+#pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
+#pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
+#include "OptimizerPrimitives.hlsl"
+
+#pragma kernel ResetMutationLossAccumulation
+#pragma kernel AccumulateMutationLoss
+#pragma kernel AccumulateMutationGradientsResetLoss
+#pragma kernel ApplyRandomMutation
+#pragma kernel CreateNewRandomMutation
+
+#pragma kernel ResetVisibilityCounter
+#pragma kernel DecrementVisibilityCounter
+#pragma kernel ListValidAndInvalidPrimitiveIDs
+#pragma kernel InitArgsResampling
+#pragma kernel InitBitonicSortValidPrimitives
+#pragma kernel BitonicSortValidPrimitives
+#pragma kernel PairResampling
+
+RWStructuredBuffer<PrimitiveData> _PrimitiveBuffer;
+int _PrimitiveCount;
+int _Dispatch1DOffset;
+
+RWTexture2D<float4> _DepthIDBufferRW;
+RWTexture2D<float4> _ResolvedFrameRW;
+RWTexture2D<float> _L2Image;
+Texture2D<float> _L2ImageMipped;
+
+Texture2D<float4> _DepthIDBufferMutatedMinus;
+Texture2D<float4> _DepthIDBufferMutatedPlus;
+Texture2D<float4> _ResolvedFrameMutatedMinus;
+Texture2D<float4> _ResolvedFrameMutatedPlus;
+Texture2D<float4> _TargetTexture;
+SamplerState _LinearClampSampler;
+
+int _OutputWidth;
+int _OutputHeight;
+float _IsOptim2D;
+int _CurrentFrame;
+int _CurrentOptimStep;
+float _IsAntitheticMutation;
+float _DoAlphaLoss;
+
+float4x4 _CameraMatrixVP;
+int _OptimizerMode;
+float _CurrentOptimizerMipLevel;
+float _OptimizerBeta1;
+float _OptimizerBeta2;
+int _MutationsPerFrame;
+int _OptimSuperSampling;
+int _CurrentMutation;
+RWStructuredBuffer<PrimitiveData> _PrimitiveBufferMutated;
+RWStructuredBuffer<int> _PrimitiveMutationError;
+RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsOptimStep;
+RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
+RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments2;
+RWStructuredBuffer<int> _PrimitiveOptimStepCounter;
+
+int _CurrentPairingOffset;
+int _FramesUnseenBeforeKill;
+int _FramesPerOptimStep;
+float _MinPrimitiveWorldArea;
+RWStructuredBuffer<int> _PrimitiveKillCounters;
+AppendStructuredBuffer<uint> _AppendValidPrimitiveIDs;
+AppendStructuredBuffer<uint> _AppendInvalidPrimitiveIDs;
+RWStructuredBuffer<uint2> _SortedValidPrimitiveIDs;
+int _PrimitiveCountPow2;
+int _SortLoopValueX;
+int _SortLoopValueY;
+StructuredBuffer<uint> _ReadValidPrimitiveIDs;
+StructuredBuffer<uint> _ReadInvalidPrimitiveIDs;
+RWStructuredBuffer<uint> _ArgsValidPrimitiveIDs;
+RWStructuredBuffer<uint> _ArgsInvalidPrimitiveIDs;
+RWStructuredBuffer<uint> _ArgsResampling;
+
+RWStructuredBuffer<int> _SortedPrimitiveIDs;
+float3 _WorldSpaceCameraPos;
+float _CameraFarZ;
+int _MaxFragmentsPerPixel;
+int _CurrentStochasticFrame;
+RWStructuredBuffer<int> _PerPixelFragmentCounter;
+RWStructuredBuffer<float4> _PerPixelFragmentList;
+float _MeshSVBRDFMode;
+int u_UniformModeDepth;
+
+float3 _ColmapTrimAABBMin;
+float3 _ColmapTrimAABBMax;
+
+float _AlphaContributingCutoff;
+float _DoGradientDescent;
+
+
+
+// ======================= RANDOM MUTATION OPTIMIZATION =======================
+[numthreads(256, 1, 1)]
+void ResetMutationLossAccumulation(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+
+	// Reset primitive gradients
+	_PrimitiveGradientsOptimStep[threadID] = ZeroInitPrimitiveData();
+
+	// Reset primitive loss (need it here for binary mutation mode)
+	_PrimitiveMutationError[threadID] = 0;
+}
+
+void AccumulateLossForVolume(uint2 pixelCoord, RWStructuredBuffer<int> _PrimitiveMutationError, int lossDiff = 0)
+{
+#ifdef VOLUME_TEXEL
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+	uint rngState = WangHash((_OutputWidth * _OutputHeight * _CurrentFrame) + flatPixelCoord);
+	int3 gridRes = uint3(_GridResX, _GridResY, _GridResZ);
+
+	// Get world space ray for this pixel
+	float4 clipPos = float4(pixelCoord / float2(_OutputWidth, _OutputHeight) * 2.0 - 1.0, 1.0, 1.0);
+	clipPos = mul(_CameraMatrixInvP, clipPos);
+	clipPos /= clipPos.w;
+	float3 rayStartPos = mul(_CameraMatrixInvV, clipPos).xyz;
+
+	float4 clipPos2 = float4(pixelCoord / float2(_OutputWidth, _OutputHeight) * 2.0 - 1.0, 0.0, 1.0);
+	clipPos2 = mul(_CameraMatrixInvP, clipPos2);
+	clipPos2 /= clipPos2.w;
+	float3 rayEndPos = mul(_CameraMatrixInvV, clipPos2).xyz;
+	float3 rayDir = normalize(rayEndPos - rayStartPos);
+
+	// Find AABB intersection points
+	float tNear, tFar;
+	bool intersected = RayAABBIntersect(rayStartPos, rayDir, _GridAABBMin, _GridAABBMax, tNear, tFar);
+	if (intersected == false)
+		return;
+	tNear = max(tNear, 0);
+	tFar = max(tFar, 0);
+
+	// Raymarch volume accumulating loss
+	float rand = rngState * (1.0 / 4294967296.0);
+	float4 finalColor = float4(0, 0, 0, 0);
+	float stepSize = _StepSize * 1;
+	float currentT = tNear + rand * _StepSize;
+	float3 currentPos = rayStartPos + rayDir * tNear;
+	while (currentT < tFar && finalColor.a < _AlphaContributingCutoff)
+	{
+		// Sample volume
+		float3 gridUV = Remap(currentPos, _GridAABBMin, _GridAABBMax, 0.0, 1.0);
+		//float4 newColor = SampleVoxelGridPrimitiveBilinear(_PrimitiveBuffer, gridUV, doLossAccumulation, _PrimitiveMutationError, lossDiff);
+		float4 newColor = _VolumeTexture.SampleLevel(_LinearClampSampler, gridUV, 0).rgba;
+#ifdef DO_GAMMA_COLORS
+		newColor.rgb = pow(newColor.rgb, 2.2);
+#endif
+		newColor.rgb *= newColor.a;
+
+		// Accumulate loss
+		int3 primitiveCoord = clamp(gridUV * gridRes, 0, gridRes - 1);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord)], lossDiff);
+		/*int3 primitiveCoord = clamp(gridUV * gridRes - 0.5, 0, gridRes - 2);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(0, 0, 0))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(0, 1, 0))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(1, 0, 0))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(1, 1, 0))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(0, 0, 1))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(0, 1, 1))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(1, 0, 1))], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[VoxelCoord3DToCoord1D(primitiveCoord + int3(1, 1, 1))], lossDiff);*/
+
+		// Perform classical alpha blending
+		//finalColor.rgb = (1.0 - finalColor.a) * (newColor.a * newColor.rgb) + finalColor.rgb;
+		//finalColor.a = newColor.a + (1.0 - newColor.a) * finalColor.a;
+		finalColor = (1.0 - finalColor.a) * newColor + finalColor;
+
+		// Advance in volume
+		currentPos += rayDir * stepSize;
+		currentT += stepSize;
+	}
+#endif
+}
+
+void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff, Texture2D<float4> _DepthIDBuffer, inout int seenPrimitiveID, int avoidPrimitiveID = -1)
+{
+#ifdef VOLUME_TEXEL
+	AccumulateLossForVolume(pixelCoord, _PrimitiveMutationError, lossDiff);
+
+#elif SVBRDF_TEXEL
+	float4 infoBufferFetch = _DepthIDBuffer[pixelCoord];
+	int primitiveID = asuint(infoBufferFetch.r);
+#ifdef USE_CCS
+	if (primitiveID >= ccs_HalfedgeCount)
+		return;
+#else
+	if (primitiveID >= ccm_HalfedgeCount)
+		return;
+#endif
+	[branch] if (_LearningRateColor > 0.0 || _LearningRateNormal > 0.0 || _LearningRateMetallic > 0.0 || _LearningRateRoughness > 0.0) // Do material maps
+	{
+		int2 primitiveCoord = clamp(infoBufferFetch.wz * _SVBRDFResolution, 0, _SVBRDFResolution - 1);
+		seenPrimitiveID = primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x;
+		if (seenPrimitiveID == avoidPrimitiveID)
+			return;
+		InterlockedAdd(_PrimitiveMutationError[primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x], lossDiff);
+		//TextureMarchLossAccumForPixel(infoBufferFetch.zw, _PrimitiveMutationError, lossDiff);
+	}
+	[branch] if (_LearningRateHeight > 0.0) // Do height map
+	{
+		int subdID = 0;
+		int ccDepth = 1 + (u_UniformModeDepth >> 1);
+		uint halfedgeID = primitiveID;
+		for (int i = 0; i < 3; i++)
+		{
+#ifdef USE_CCS
+			float2 uv = ccs_HalfedgeVertexUv(subdID, halfedgeID, ccDepth);
+			halfedgeID = ccs_HalfedgeNextID(subdID, halfedgeID, ccDepth);
+#else
+			float2 uv = ccm_HalfedgeVertexUv(subdID, halfedgeID);
+			halfedgeID = ccm_HalfedgeNextID(subdID, halfedgeID);
+#endif
+			int2 primitiveCoord = clamp(uv.yx * _SVBRDFResolution, 0, _SVBRDFResolution - 1);
+			seenPrimitiveID = primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x;
+			if (seenPrimitiveID == avoidPrimitiveID)
+				return;
+			InterlockedAdd(_PrimitiveMutationError[primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x], lossDiff);
+			//TextureMarchLossAccumForPixel(uv, _PrimitiveMutationError, lossDiff);
+		}
+	}
+
+#elif MESH_VERTEX
+	float4 infoBufferFetch = _DepthIDBuffer[pixelCoord];
+	int primitiveID = asuint(infoBufferFetch.r);
+	seenPrimitiveID = primitiveID;
+	if (primitiveID >= ccm_HalfedgeCount || seenPrimitiveID == avoidPrimitiveID)
+		return;
+	int subdID = 0;
+	uint halfedgeID = primitiveID;
+	for (int i = 0; i < 3; i++)
+	{
+		if (_LearningRatePosition > 0.0) // VERTEX OPTIM
+		{
+			int vertexID = ccm_HalfedgeVertexID(subdID, halfedgeID);
+			InterlockedAdd(_PrimitiveMutationError[vertexID], lossDiff);
+		}
+		else if (_LearningRateCrease > 0.0) // CREASE OPTIM
+		{
+			int edgeID = ccm_HalfedgeEdgeID(subdID, halfedgeID);
+			InterlockedAdd(_PrimitiveMutationError[edgeID], lossDiff);
+		}
+		halfedgeID = ccm_HalfedgeNextID(subdID, halfedgeID);
+	}
+
+#else // TRIANGLE SOUPS AND GAUSSIAN SPLATS
+#ifdef OPAQUE_RENDER
+	float4 depthIDBufferFetch = _DepthIDBuffer[pixelCoord];
+	int primitiveID = asuint(depthIDBufferFetch.r);
+	seenPrimitiveID = primitiveID;
+	if (primitiveID >= _PrimitiveCount || seenPrimitiveID == avoidPrimitiveID)
+		return;
+	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
+	//InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+
+#elif SORTED_ALPHA_RENDER
+	int visibleFragmentCount = _PerPixelFragmentCounter[flatPixelCoord];
+	for (int i = 0; i < visibleFragmentCount; i++)
+	{
+		float4 depthIDBufferFetch = _PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i];
+		uint primitiveID = asuint(depthIDBufferFetch.r);
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
+	}
+
+#elif STOCHASTIC_ALPHA_RENDER
+	for (int i = 0; i < _MaxFragmentsPerPixel; i++)
+	{
+		float4 depthIDBufferFetch = _PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i];
+		uint primitiveID = asuint(depthIDBufferFetch.r);
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
+	}
+#endif
+#endif
+}
+
+[numthreads(16, 16, 1)]
+void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	// Fetch target color, should already be alpha pre-multiplied
+	uint2 pixelCoord = threadID.xy;
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+	float2 pixelUV = (pixelCoord + 0.5) / float2(_OutputWidth, _OutputHeight);
+	float4 targetColor = _TargetTexture.SampleLevel(_LinearClampSampler, pixelUV, 0);
+	targetColor.rgb = pow(targetColor.rgb, 1.0 / 2.2);// *targetColor.a;
+
+	// Fetch pre (0) and post (1) random move result, should already by alpha pre-multiplied
+	float4 colorRenderMinus = _ResolvedFrameMutatedMinus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
+	float4 colorRenderPlus = _ResolvedFrameMutatedPlus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
+	colorRenderMinus.rgb = pow(colorRenderMinus.rgb, 1.0 / 2.2);// *colorRenderMinus.a;
+	colorRenderPlus.rgb = pow(colorRenderPlus.rgb, 1.0 / 2.2);// *colorRenderPlus.a;
+
+	// Compute loss
+	float4 lossMinusRGBA = pow(abs(targetColor - colorRenderMinus), 2.0); // L2
+	float4 lossPlusRGBA = pow(abs(targetColor - colorRenderPlus), 2.0); // L2
+	float lossMinus = lossMinusRGBA.x + lossMinusRGBA.y + lossMinusRGBA.z + lossMinusRGBA.a * _DoAlphaLoss;
+	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss;
+	float lossDiffFloat = lossMinus - lossPlus;
+
+	int lossDiff = lossDiffFloat * 256 * 256;
+	if (lossDiff == 0)
+		return;
+
+	// Accumulate loss for all primitives that contributed using both ID buffers
+	int seenPrimitiveID1 = -1;
+	int seenPrimitiveID2 = -1;
+	AccumulateLossForPixel(pixelCoord, flatPixelCoord, lossDiff, _DepthIDBufferMutatedPlus, seenPrimitiveID1);
+	AccumulateLossForPixel(pixelCoord, flatPixelCoord, lossDiff, _DepthIDBufferMutatedMinus, seenPrimitiveID2, seenPrimitiveID1);
+}
+
+[numthreads(256, 1, 1)]
+void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+	uint primitiveID = threadID;
+
+	// Fetch Primitive loss
+	float lossDiff = _PrimitiveMutationError[primitiveID].x;
+
+	// Get data
+	PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
+	PrimitiveData primitiveDataMutated = _PrimitiveBufferMutated[primitiveID];
+	PrimitiveData mutationGradients = _PrimitiveGradientsOptimStep[primitiveID];
+
+	// Convert to primitive agnostic float arrays
+	float primitiveDataFloats[PRIMITIVE_SIZE];
+	float primitiveDataMutatedFloats[PRIMITIVE_SIZE];
+	float mutationGradientsFloats[PRIMITIVE_SIZE];
+	GetPrimitiveAsFloatArray(primitiveData, primitiveDataFloats);
+	GetPrimitiveAsFloatArray(primitiveDataMutated, primitiveDataMutatedFloats);
+	GetPrimitiveAsFloatArray(mutationGradients, mutationGradientsFloats);
+
+	// Accumulate gradients
+	for (int i = 0; i < PRIMITIVE_SIZE; i++)
+	{
+		float mutation = primitiveDataMutatedFloats[i] - primitiveDataFloats[i];
+		mutationGradientsFloats[i] += mutation * lossDiff / 2.0;
+	}
+
+	// Convert back to primitive struct
+	mutationGradients = GetFloatArrayAsPrimitive(mutationGradientsFloats);
+
+	// Store result
+	_PrimitiveGradientsOptimStep[primitiveID] = mutationGradients;
+
+	// Reset Primitive loss
+	_PrimitiveMutationError[threadID].x = 0;
+}
+
+[numthreads(256, 1, 1)]
+void ApplyRandomMutation(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+
+	// Get data
+	uint primitiveID = threadID;
+	PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
+	PrimitiveData mutationGradients = _PrimitiveGradientsOptimStep[primitiveID];
+	PrimitiveData gradientMoments1 = _PrimitiveGradientsMoments1[primitiveID];
+	PrimitiveData gradientMoments2 = _PrimitiveGradientsMoments2[primitiveID];
+
+	// Convert to primitive agnostic float arrays
+	float primitiveDataFloats[PRIMITIVE_SIZE];
+	float mutationGradientsFloats[PRIMITIVE_SIZE];
+	float gradientMoments1Floats[PRIMITIVE_SIZE];
+	float gradientMoments2Floats[PRIMITIVE_SIZE];
+	float learningRatesFloats[PRIMITIVE_SIZE];
+	GetPrimitiveAsFloatArray(primitiveData, primitiveDataFloats);
+	GetPrimitiveAsFloatArray(mutationGradients, mutationGradientsFloats);
+	GetPrimitiveAsFloatArray(gradientMoments1, gradientMoments1Floats);
+	GetPrimitiveAsFloatArray(gradientMoments2, gradientMoments2Floats);
+	GetLearningRatesFloatArray(learningRatesFloats);
+
+	// Normalize gradients by pixel counts and reset them
+	/*int pixelCount = _PrimitiveMutationError[threadID].y;
+	if (pixelCount > 0)
+		for (int i = 0; i < PRIMITIVE_SIZE; i++)
+			mutationGradientsFloats[i] /= (float)pixelCount;
+	_PrimitiveMutationError[threadID].y = 0;*/
+
+	// Apply gradients
+	if (_OptimizerMode == 0) // RMS PROP
+	{
+		for (int i = 0; i < PRIMITIVE_SIZE; i++)
+		{
+			if (learningRatesFloats[i] == 0)
+				continue;
+
+			// Fetch gradient
+			float gradient = mutationGradientsFloats[i];
+
+			// Update RMS Prop squared gradient
+			gradientMoments1Floats[i] = _OptimizerBeta1 * gradientMoments1Floats[i] + (1.0 - _OptimizerBeta1) * (gradient * gradient);
+
+			// Apply gradient
+			if (_CurrentOptimStep == 0)
+				continue;
+			primitiveDataFloats[i] += learningRatesFloats[i] * (gradient / (sqrt(gradientMoments1Floats[i]) + 1e-7));
+		}
+	}
+	else // ADAM
+	{
+		int primitiveOptimStep = _PrimitiveOptimStepCounter[primitiveID];
+		for (int i = 0; i < PRIMITIVE_SIZE; i++)
+		{
+			if (learningRatesFloats[i] == 0)
+				continue;
+
+			// Fetch gradient
+			float gradient = mutationGradientsFloats[i];
+
+			// Update gradient moments
+			gradientMoments1Floats[i] = _OptimizerBeta1 * gradientMoments1Floats[i] + (1.0 - _OptimizerBeta1) * gradient;
+			gradientMoments2Floats[i] = _OptimizerBeta2 * gradientMoments2Floats[i] + (1.0 - _OptimizerBeta2) * (gradient * gradient);
+
+			// Apply gradient
+			float moment1BiasCorrected = gradientMoments1Floats[i] / (1.0 - pow(_OptimizerBeta1, primitiveOptimStep + 1));
+			float moment2BiasCorrected = gradientMoments2Floats[i] / (1.0 - pow(_OptimizerBeta2, primitiveOptimStep + 1));
+			if (_DoGradientDescent > 0.5)
+				primitiveDataFloats[i] += learningRatesFloats[i] * (moment1BiasCorrected / (sqrt(moment2BiasCorrected) + 1e-7));
+		}
+		_PrimitiveOptimStepCounter[primitiveID] = primitiveOptimStep + 1;
+	}
+
+	// TEMP VOLUME HACK
+#ifdef VOLUME_TEXEL
+	//if (_CurrentOptimStep % 100 == 0)
+	//	primitiveDataFloats[0] -= 0.25f;
+#endif
+
+	// Convert back to primitive struct
+	primitiveData = GetFloatArrayAsPrimitive(primitiveDataFloats);
+	gradientMoments1 = GetFloatArrayAsPrimitive(gradientMoments1Floats);
+	gradientMoments2 = GetFloatArrayAsPrimitive(gradientMoments2Floats);
+
+	// Apply primitive specific clamping, normalizing, etc.
+	PostProcessPrimitive(primitiveData);
+
+	// Write results
+	_PrimitiveBuffer[primitiveID] = primitiveData;
+	_PrimitiveGradientsMoments1[primitiveID] = gradientMoments1;
+	_PrimitiveGradientsMoments2[primitiveID] = gradientMoments2;
+}
+
+[numthreads(256, 1, 1)]
+void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+
+	// Get current primitive data
+	PrimitiveData primitiveData = _PrimitiveBuffer[threadID];
+
+	// Convert to primitive agnostic float arrays
+	float primitiveDataFloats[PRIMITIVE_SIZE];
+	float learningRatesFloats[PRIMITIVE_SIZE];
+	GetPrimitiveAsFloatArray(primitiveData, primitiveDataFloats);
+	GetLearningRatesFloatArray(learningRatesFloats);
+
+	uint rngState = WangHash((_CurrentFrame * _PrimitiveCount * _MutationsPerFrame) + (threadID * _MutationsPerFrame) + _CurrentMutation);
+	for (int i = 0; i < PRIMITIVE_SIZE; i++)
+	{
+		if (learningRatesFloats[i] == 0)
+			continue;
+		float randomMutation = GetRandomFloat(rngState);
+		randomMutation *= _IsAntitheticMutation > 0.5 ? -1.0 : 1.0;
+		randomMutation *= learningRatesFloats[i];
+		primitiveDataFloats[i] += randomMutation;
+	}
+
+	// Convert back to primitive struct
+	primitiveData = GetFloatArrayAsPrimitive(primitiveDataFloats);
+
+	// Apply primitive specific clamping, normalizing, etc.
+	PostProcessPrimitive(primitiveData);
+
+	// Store moved primitive for rendering
+	_PrimitiveBufferMutated[threadID] = primitiveData;
+}
+
+
+
+
+// ======================= PRIMITIVE RESAMPLING =======================
+[numthreads(256, 1, 1)]
+void ResetVisibilityCounter(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+	_PrimitiveKillCounters[threadID] = _FramesUnseenBeforeKill;
+}
+
+[numthreads(256, 1, 1)]
+void DecrementVisibilityCounter(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+
+	int currentCounter = _PrimitiveKillCounters[threadID];
+	if (currentCounter > 0)
+		_PrimitiveKillCounters[threadID] = currentCounter - 1;
+}
+
+[numthreads(256, 1, 1)]
+void ListValidAndInvalidPrimitiveIDs(uint3 id : SV_DispatchThreadID)
+{
+	uint threadID = id.x + _Dispatch1DOffset;
+	if (threadID >= _PrimitiveCount)
+		return;
+	uint primitiveID = threadID;// (threadID + _CurrentPairingOffset) % _PrimitiveCount;
+
+	// Don't resample skybox primitives
+	if (primitiveID >= _PrimitiveCount)
+		return;
+
+	PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
+	float primitiveArea;
+	bool isValid = PrimitiveIsValid(primitiveData, primitiveArea, _MinPrimitiveWorldArea);
+
+	// Do skybox removal test
+	/*PrimitiveData gradients = _PrimitiveGradientsMoments1[primitiveID];
+	float colorGradientMagnitude = gradients.color.r + gradients.color.g + gradients.color.b;
+	if (colorGradientMagnitude > 20000)
+		isValid = false;*/
+
+	// Do bounds trimming test
+	/*bool doSubdivide = true;
+	float3 pos = (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0f;
+	if ((pos.x > _ColmapTrimAABBMin.x && pos.x < _ColmapTrimAABBMax.x &&
+		pos.y > _ColmapTrimAABBMin.y && pos.y < _ColmapTrimAABBMax.y &&
+		pos.z > _ColmapTrimAABBMin.z && pos.z < _ColmapTrimAABBMax.z) == false)
+	{
+		doSubdivide = false;
+	}*/
+
+	// Take into account visibility
+//#ifdef OPAQUE_RENDER
+	isValid = isValid && _PrimitiveKillCounters[primitiveID] > 0;
+//#endif
+
+	if (isValid == true)
+	{
+		// Primitive to subdivide must be twice larger than minimum area
+		if (primitiveArea >= _MinPrimitiveWorldArea * 3.0)
+			_AppendValidPrimitiveIDs.Append(primitiveID);
+	}
+	else
+	{
+		_AppendInvalidPrimitiveIDs.Append(primitiveID);
+		// DEBUG : paint non-validity
+		//_PrimitiveBuffer[primitiveID].color = uint4(256, 0, 256, 0);
+	}
+}
+
+[numthreads(1, 1, 1)]
+void InitArgsResampling(uint3 id : SV_DispatchThreadID)
+{
+	uint validCount = _ArgsValidPrimitiveIDs[0];
+	uint invalidCount = _ArgsInvalidPrimitiveIDs[0];
+	uint threadCount = min(validCount, invalidCount);
+
+	int threadGroupCount = (int)ceil(threadCount / 256.0);
+	if (threadGroupCount < 65536)
+	{
+		_ArgsResampling[0] = threadGroupCount;
+		_ArgsResampling[1] = 1;
+		_ArgsResampling[2] = 1;
+		_ArgsResampling[3] = threadCount;
+	}
+	else
+	{
+		int threadGroupCountDistributed = (int)ceil(pow(threadGroupCount, 1.0f / 2.0f));
+		_ArgsResampling[0] = threadGroupCountDistributed;
+		_ArgsResampling[1] = threadGroupCountDistributed;
+		_ArgsResampling[2] = 1;
+		_ArgsResampling[3] = threadCount;
+	}
+}
+
+[numthreads(256, 1, 1)]
+void InitBitonicSortValidPrimitives(uint threadID : SV_DispatchThreadID)
+{
+	if (threadID >= _PrimitiveCountPow2)
+		return;
+
+	uint validCount = _ArgsValidPrimitiveIDs[0];
+	uint2 sort;
+	if (threadID < validCount)
+	{
+		sort.x = _ReadValidPrimitiveIDs[threadID];
+#ifndef GAUSSIAN_SPLAT
+		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
+		sort.y = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]) * 65536;
+		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
+		float posGradientMagnitude = length(primitiveGradients.positions[0] + primitiveGradients.positions[1] + primitiveGradients.positions[2]);
+		sort.y = posGradientMagnitude * 65536;*/
+		//sort.y = WangHash((_CurrentOptimStep * _PrimitiveCount) + sort.x);
+#else
+		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
+		float maxScale = max(primitiveData.scale.x, max(primitiveData.scale.y, primitiveData.scale.z));
+		float volume = primitiveData.scale.x * primitiveData.scale.y * primitiveData.scale.z;
+		sort.y = maxScale * 65536;
+		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
+		float posGradientMagnitude = length(primitiveGradients.position);
+		sort.y = posGradientMagnitude * 65536;*/
+#endif
+	}
+	else
+	{
+		sort.x = 4294967295;
+		sort.y = 0;
+	}
+	_SortedValidPrimitiveIDs[threadID.x] = sort;
+}
+
+[numthreads(256, 1, 1)]
+void BitonicSortValidPrimitives(uint threadID : SV_DispatchThreadID)
+{
+	if (threadID >= _PrimitiveCountPow2 / 2)
+		return;
+
+	uint d1 = _SortLoopValueX;
+	uint d2 = _SortLoopValueY;
+	uint mask = 0xFFFFFFFEu * d1;
+	uint i1 = ((threadID << 1) & mask) | (threadID & ~(mask >> 1));
+	uint i2 = i1 | d1;
+
+	uint2 gaussian1 = _SortedValidPrimitiveIDs[i1];
+	uint2 gaussian2 = _SortedValidPrimitiveIDs[i2];
+	uint2 minValue = gaussian1.y >= gaussian2.y ? gaussian1 : gaussian2;
+	uint2 maxValue = gaussian1.y >= gaussian2.y ? gaussian2 : gaussian1;
+
+	if ((threadID & d2) == 0u)
+	{
+		_SortedValidPrimitiveIDs[i1] = minValue;
+		_SortedValidPrimitiveIDs[i2] = maxValue;
+	}
+	else
+	{
+		_SortedValidPrimitiveIDs[i1] = maxValue;
+		_SortedValidPrimitiveIDs[i2] = minValue;
+	}
+}
+
+[numthreads(256, 1, 1)]
+void PairResampling(uint3 id : SV_DispatchThreadID)
+{
+	uint dispatchDistributer = _ArgsResampling[0];
+	uint threadID = id.x + id.y * dispatchDistributer * 256;
+	if (threadID >= _ArgsResampling[3])
+		return;
+
+	// Get current resampling pair (subdivide primitive1 by re-using primitive0)
+	uint primitiveID0 = _ReadInvalidPrimitiveIDs[threadID];
+	//uint primitiveID1 = _ReadValidPrimitiveIDs[threadID];
+	uint primitiveID1 = _SortedValidPrimitiveIDs[threadID].x;
+	if (primitiveID1 >= _PrimitiveCount)
+		return;
+	PrimitiveData primitive0 = _PrimitiveBuffer[primitiveID0];
+	PrimitiveData primitive1 = _PrimitiveBuffer[primitiveID1];
+
+	// Longest edge bisection
+	float lengthA = length(primitive1.positions[1] - primitive1.positions[0]);
+	float lengthB = length(primitive1.positions[2] - primitive1.positions[1]);
+	float lengthC = length(primitive1.positions[0] - primitive1.positions[2]);
+	uint idBase, idLeft, idRight;
+	if (lengthA > lengthB && lengthA > lengthC)
+	{
+		idBase = 2;
+		idLeft = 0;
+		idRight = 1;
+	}
+	else if (lengthB > lengthA && lengthB > lengthC)
+	{
+		idBase = 0;
+		idLeft = 1;
+		idRight = 2;
+	}
+	else
+	{
+		idBase = 1;
+		idLeft = 2;
+		idRight = 0;
+	}
+
+	// Handle kill counters
+	_PrimitiveKillCounters[primitiveID0] = _FramesUnseenBeforeKill;
+	_PrimitiveKillCounters[primitiveID1] = _FramesUnseenBeforeKill;
+
+	// Handle positions
+	float3 newVertex = (primitive1.positions[idLeft] + primitive1.positions[idRight]) / 2.0;
+	_PrimitiveBuffer[primitiveID0].positions[0] = primitive1.positions[idBase];
+	_PrimitiveBuffer[primitiveID0].positions[1] = primitive1.positions[idLeft];
+	_PrimitiveBuffer[primitiveID0].positions[2] = newVertex;
+	_PrimitiveBuffer[primitiveID1].positions[0] = primitive1.positions[idBase];
+	_PrimitiveBuffer[primitiveID1].positions[1] = newVertex;
+	_PrimitiveBuffer[primitiveID1].positions[2] = primitive1.positions[idRight];
+
+	// Fake "gaussian" triangles special case
+#ifdef TRIANGLE_GAUSSIAN
+	float3 offset = (primitive1.positions[idRight] - primitive1.positions[idLeft]) * 0.15;
+	_PrimitiveBuffer[primitiveID0].positions[0] += offset;
+	_PrimitiveBuffer[primitiveID0].positions[2] += offset;
+	_PrimitiveBuffer[primitiveID1].positions[0] -= offset;
+	_PrimitiveBuffer[primitiveID1].positions[1] -= offset;
+#endif
+
+	// If we're optimizing in 2D, add small Z offset to one Primitive to avoid Z-fighting
+	if (_IsOptim2D > 0.5f)
+	{
+		float rand = WangHash((_CurrentFrame * _PrimitiveCount) + primitiveID0) * (1.0 / 4294967296.0);
+		float smallOffset = (rand * 2.0 - 1.0) * 0.0001;
+		_PrimitiveBuffer[primitiveID0].positions[0].z += smallOffset;
+		_PrimitiveBuffer[primitiveID0].positions[1].z += smallOffset;
+		_PrimitiveBuffer[primitiveID0].positions[2].z += smallOffset;
+	}
+
+	// Handle color
+#ifdef TRIANGLE_SOLID
+	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
+	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
+#elif TRIANGLE_GRADIENT
+	//Color newColor = (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
+	_PrimitiveBuffer[primitiveID0].colors[0] = primitive1.colors[idBase];
+	_PrimitiveBuffer[primitiveID0].colors[1] = primitive1.colors[idLeft];
+	_PrimitiveBuffer[primitiveID0].colors[2] = primitive1.colors[idLeft];
+	_PrimitiveBuffer[primitiveID1].colors[0] = primitive1.colors[idBase];
+	_PrimitiveBuffer[primitiveID1].colors[1] = primitive1.colors[idLeft];
+	_PrimitiveBuffer[primitiveID1].colors[2] = primitive1.colors[idRight];
+#elif TRIANGLE_GAUSSIAN
+	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
+	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
+#endif
+
+	// Reset all gradients
+	PrimitiveData zeroInit = ZeroInitPrimitiveData();
+	_PrimitiveGradientsMoments1[primitiveID0] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveID0] = zeroInit;
+	_PrimitiveGradientsMoments1[primitiveID1] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveID1] = zeroInit;
+	_PrimitiveOptimStepCounter[primitiveID0] = 0;
+	_PrimitiveOptimStepCounter[primitiveID1] = 0;
+}

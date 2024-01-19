@@ -1,0 +1,318 @@
+﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+#pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
+#pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
+#include "OptimizerPrimitives.hlsl"
+
+#pragma kernel ClearRenderTarget
+#pragma kernel ResolveOpaqueRender
+#pragma kernel ComputeL2Image
+
+#pragma kernel ResetAlphaCounters
+#pragma kernel SortAlphaFragments
+#pragma kernel InitBitonicSortPrimitives
+#pragma kernel BitonicSortPrimitives
+#pragma kernel FindContributingAlphaFragments
+
+// FidelityFX GPU sorting
+#pragma kernel FfxParallelSortReduce
+#pragma kernel FfxParallelSortScanAdd
+#pragma kernel FfxParallelSortScan
+#pragma kernel FfxParallelSortScatter
+#pragma kernel FfxParallelSortCount
+// GPU sorting needs wave ops
+#pragma require wavebasic
+#pragma use_dxc
+#include "GpuSortFidelityFX.hlsl"
+
+
+RWStructuredBuffer<PrimitiveData> _PrimitiveBuffer;
+RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
+int _PrimitiveCount;
+int _Dispatch1DOffset;
+
+RWTexture2D<float4> _DepthIDBufferRW;
+RWTexture2D<float4> _ResolvedFrameRW;
+RWTexture2D<float4> _L2Image;
+
+Texture2D<float4> _DepthIDBufferMutated;
+Texture2D<float4> _ResolvedFrameCurrent;
+Texture2D<float4> _ResolvedFrameMutated;
+Texture2D<float4> _TargetTexture;
+SamplerState _LinearClampSampler;
+
+int _OutputWidth;
+int _OutputHeight;
+float _IsOptim2D;
+int _CurrentFrame;
+int _CurrentOptimStep;
+
+//RWStructuredBuffer<uint2> _SortedPrimitiveIDs;
+int _PrimitiveCountPow2;
+int _SortLoopValueX;
+int _SortLoopValueY;
+float3 _WorldSpaceCameraPos;
+float _CameraFarZ;
+int _MaxFragmentsPerPixel;
+int _CurrentStochasticFrame;
+RWStructuredBuffer<int> _PerPixelFragmentCounter;
+RWStructuredBuffer<float4> _PerPixelFragmentList;
+StructuredBuffer<int> _MeshOptimTriangleBuffer;
+StructuredBuffer<int> _MeshOptimTriangleNeighbourBuffer;
+int _MeshOptimTriangleCount;
+
+int _FramesUnseenBeforeKill;
+RWStructuredBuffer<int> _PrimitiveKillCounters;
+
+float _AlphaContributingCutoff;
+
+// Sorting
+RWStructuredBuffer<uint> _SortedPrimitiveIDs;
+RWStructuredBuffer<uint> _SortedPrimitiveDistances;
+float4x4 _SortMatrixMV;
+
+
+
+// ================= OPAQUE PROCEDURAL PRIMITIVE RENDERER =================
+[numthreads(16, 16, 1)]
+void ClearRenderTarget(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+	uint2 pixelCoord = threadID.xy;
+
+	// Clear Render buffer
+	_ResolvedFrameRW[pixelCoord] = float4(0, 0, 0, 0);
+}
+
+[numthreads(16, 16, 1)]
+void ResolveOpaqueRender(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	// Resolve Render buffer
+	uint2 pixelCoord = threadID.xy;
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+	float4 depthIDBufferFetch = _DepthIDBufferRW[pixelCoord];
+	uint primitiveID = asuint(depthIDBufferFetch.r);
+//#ifndef MESH_VERTEX
+	if (primitiveID < _PrimitiveCount)
+	{
+		float4 newColor = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[primitiveID], FloatToFloat3(depthIDBufferFetch.g), Unpack16FloatsFrom32(depthIDBufferFetch.a)));
+	#ifndef OPAQUE_RENDER
+		//newColor.rgb *= newColor.a;
+	#endif
+
+		// Reset visibility counter
+		_PrimitiveKillCounters[primitiveID] = _FramesUnseenBeforeKill;
+
+	#ifndef STOCHASTIC_ALPHA_RENDER
+		_ResolvedFrameRW[pixelCoord] = newColor;
+	#else
+		float4 prevColor = _ResolvedFrameRW[pixelCoord];
+		//_ResolvedFrameRW[pixelCoord] = prevColor + (newColor - prevColor) / (float)(_CurrentStochasticFrame + 1.0);
+		_ResolvedFrameRW[pixelCoord] += newColor / (float)(_MaxFragmentsPerPixel);
+		_PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + _CurrentStochasticFrame] = depthIDBufferFetch;
+	#endif
+	}
+//#else
+//	if (primitiveID < _MeshOptimTriangleCount)
+//	{
+//		float4 newColorA = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 0]], 0.0.rr));
+//		float4 newColorB = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 1]], 0.0.rr));
+//		float4 newColorC = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 2]], 0.0.rr));
+//		float2 tempBarycentric = Unpack16FloatsFrom32(depthIDBufferFetch.a);
+//		float3 barycentric = float3(tempBarycentric.r, tempBarycentric.g, 1.0 - (tempBarycentric.r + tempBarycentric.g));
+//		float4 newColor = newColorA * barycentric.x + newColorB * barycentric.y + newColorC * barycentric.z;
+//		newColor.a = 1.0;
+//		_ResolvedFrameRW[pixelCoord] = newColor;
+//	}
+//#endif
+}
+
+[numthreads(16, 16, 1)]
+void ComputeL2Image(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	uint2 pixelCoord = threadID.xy;
+	float4 targetColor = _TargetTexture[pixelCoord].rgba;
+	float4 resolvedColor = _ResolvedFrameRW[pixelCoord].rgba;
+	float4 loss = targetColor - resolvedColor;
+	_L2Image[pixelCoord] += loss * loss;
+}
+
+
+
+
+// ============== TRANSPARENT PROCEDURAL PRIMITIVE RENDERER ==============
+uint FloatToSortableUint(float f)
+{
+	uint fu = asuint(f);
+	uint mask = -((int)(fu >> 31)) | 0x80000000;
+	return fu ^ mask;
+}
+
+[numthreads(16, 16, 1)]
+void ResetAlphaCounters(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	uint2 pixelCoord = threadID.xy;
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+
+	_PerPixelFragmentCounter[flatPixelCoord] = 0;
+
+	//for (int i = 0; i < _MaxFragmentsPerPixel; i++)
+	//	_PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i] = float4(asfloat(4294967295), 0, 0, 0);
+}
+
+[numthreads(16, 16, 1)]
+void SortAlphaFragments(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	uint2 pixelCoord = threadID.xy;
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+	int fragmentCount = min(_PerPixelFragmentCounter[flatPixelCoord], _MaxFragmentsPerPixel);
+
+	// Pre-fetch all memory
+	float4 fragments[64];
+	for (int i = 0; i < fragmentCount; i++)
+		fragments[i] = _PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i];
+
+	// Bubble sort on depth
+	for (int i = 0; i < fragmentCount - 1; i++)
+	{
+		for (int j = 0; j < fragmentCount - i - 1; j++)
+		{
+			if (fragments[j].x < fragments[j + 1].x)
+			{
+				float4 temp = fragments[j];
+				fragments[j] = fragments[j + 1];
+				fragments[j + 1] = temp;
+			}
+		}
+	}
+
+	// Merge sort
+	/*int i1, j1, j2, k;
+	int a, b, c;
+	int step = 1;
+	float4 leftArray[16]; //for merge sort
+	while (step <= fragmentCount)
+	{
+		i1 = 0;
+		while (i1 < fragmentCount - step)
+		{
+			////////////////////////////////////////////////////////////////////////
+			//merge(step, i1, i1 + step, min(i1 + step + step, fragmentCount));
+			a = i1;
+			b = i1 + step;
+			c = (i1 + step + step) >= fragmentCount ? fragmentCount : (i1 + step + step);
+
+			for (k = 0; k < step; k++)
+				leftArray[k] = fragments[a + k];
+
+			j1 = 0;
+			j2 = 0;
+			for (k = a; k < c; k++)
+			{
+				if (b + j1 >= c || (j2 < step && fragments[j2].x > fragments[b + j1].x))
+					fragments[k] = leftArray[j2++];
+				else
+					fragments[k] = fragments[b + j1++];
+			}
+			////////////////////////////////////////////////////////////////////////
+			i1 += 2 * step;
+		}
+		step *= 2;
+	}*/
+
+	// Write to memory
+	for (int i = 0; i < fragmentCount; i++)
+		_PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i] = fragments[i];
+}
+
+[numthreads(256, 1, 1)]
+void InitBitonicSortPrimitives(uint threadID : SV_DispatchThreadID)
+{
+	if (threadID >= _PrimitiveCount)
+		return;
+
+	// Init ID and depth
+	_SortedPrimitiveIDs[threadID.x] = threadID.x;
+	float3 gaussianPos = GetPrimitiveWorldDepthSortPosition(_PrimitiveBuffer[threadID.x]);
+	float z = mul(_SortMatrixMV, float4(gaussianPos.xyz, 1)).z;
+	_SortedPrimitiveDistances[threadID.x] = FloatToSortableUint(z);
+}
+
+[numthreads(256, 1, 1)]
+void BitonicSortPrimitives(uint threadID : SV_DispatchThreadID)
+{
+	if (threadID >= _PrimitiveCountPow2 / 2)
+		return;
+
+	uint d1 = _SortLoopValueX;
+	uint d2 = _SortLoopValueY;
+	uint mask = 0xFFFFFFFEu * d1;
+	uint i1 = ((threadID << 1) & mask) | (threadID & ~(mask >> 1));
+	uint i2 = i1 | d1;
+
+	uint2 gaussian1 = _SortedPrimitiveIDs[i1];
+	uint2 gaussian2 = _SortedPrimitiveIDs[i2];
+	uint2 minValue = gaussian1.y <= gaussian2.y ? gaussian1 : gaussian2;
+	uint2 maxValue = gaussian1.y <= gaussian2.y ? gaussian2 : gaussian1;
+
+	if ((threadID & d2) == 0u)
+	{
+		_SortedPrimitiveIDs[i1] = minValue;
+		_SortedPrimitiveIDs[i2] = maxValue;
+	}
+	else
+	{
+		_SortedPrimitiveIDs[i1] = maxValue;
+		_SortedPrimitiveIDs[i2] = minValue;
+	}
+}
+
+[numthreads(16, 16, 1)]
+void FindContributingAlphaFragments(uint3 threadID : SV_DispatchThreadID)
+{
+	if (threadID.x >= _OutputWidth || threadID.y >= _OutputHeight)
+		return;
+
+	uint2 pixelCoord = threadID.xy;
+	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
+	int fragmentCount = _PerPixelFragmentCounter[flatPixelCoord];
+
+	float4 finalColor = float4(0, 0, 0, 0);
+	for (int i = 0; i < fragmentCount; i++)
+	{
+		// Early exit
+		if (finalColor.a > _AlphaContributingCutoff)
+		{
+			finalColor.a = 1.0;
+			break;
+		}
+
+		float4 depthIDBufferFetch = _PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + i];
+		uint primitiveID = asuint(depthIDBufferFetch.r);
+		float4 color = FetchColorFromPrimitive(_PrimitiveBuffer[primitiveID], FloatToFloat3(depthIDBufferFetch.g), Unpack16FloatsFrom32(depthIDBufferFetch.a));
+
+		finalColor.rgb = (1.0 - finalColor.a) * (color.a * color.rgb) + finalColor.rgb;
+		finalColor.a = color.a + (1.0 - color.a) * finalColor.a;
+
+		// Reset visibility counter
+		_PrimitiveKillCounters[primitiveID] = _FramesUnseenBeforeKill;
+	}
+
+	// Store visible fragment count
+	_PerPixelFragmentCounter[flatPixelCoord] = i;
+
+	// Write final color
+	//_ResolvedFrameRW[pixelCoord] = finalColor;
+}
