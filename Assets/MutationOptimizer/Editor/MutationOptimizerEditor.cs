@@ -13,19 +13,12 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty target2DImage;
 	SerializedProperty target3DMesh;
 	SerializedProperty target3DCOLMAPFolder;
-	SerializedProperty targetMaterial;
 	SerializedProperty colmapRescaler;
 	SerializedProperty colmapUseMasking;
 	SerializedProperty optimPrimitive;
 	SerializedProperty primitiveCount;
 	SerializedProperty primitiveInitSize;
 	SerializedProperty primitiveInitSeed;
-	SerializedProperty voxelGridMaxResolution;
-	SerializedProperty materialResolution;
-	SerializedProperty meshInitState;
-	SerializedProperty meshCatmullClarkSubdivisions;
-	SerializedProperty meshCatmullClarkUseCreases;
-	SerializedProperty meshInitSize;
 	SerializedProperty initPrimitivesOnMeshSurface;
 	SerializedProperty colmapUseCameraBounds;
 	SerializedProperty colmapOnePrimitivePerInitPoint;
@@ -36,8 +29,6 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty transparencyMode;
 	SerializedProperty maxFragmentsPerPixel;
 	SerializedProperty alphaContributingCutoff;
-	SerializedProperty materialHeightMode;
-	SerializedProperty targetTessellationResolution;
 	SerializedProperty randomViewZoomRange;
 
 	SerializedProperty reset;
@@ -49,7 +40,6 @@ public class MutationOptimizerEditor : Editor
 
 	SerializedProperty lrGlobalStartMulAndSpeed;
 	SerializedProperty lrGeometryStartMulAndSpeed;
-	SerializedProperty lrRegulStartMulAndSpeed;
 	SerializedProperty doublingAmount;
 	SerializedProperty doubleEveryXSteps;
 
@@ -66,18 +56,8 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty beta1;
 	SerializedProperty beta2;
 	SerializedProperty learningRatePosition;
-	SerializedProperty learningRateCrease;
-	SerializedProperty learningRateUV;
-	SerializedProperty learningRateRotation;
-	SerializedProperty learningRateScale;
 	SerializedProperty learningRateColor;
 	SerializedProperty learningRateAlpha;
-	SerializedProperty learningRateNormal;
-	SerializedProperty learningRateMetallic;
-	SerializedProperty learningRateRoughness;
-	SerializedProperty learningRateHeight;
-	SerializedProperty vertexRegularizerWeight;
-	SerializedProperty vertexRegularizer2Weight;
 
 	SerializedProperty doPrimitiveResampling;
 	SerializedProperty resamplingInterval;
@@ -102,19 +82,12 @@ public class MutationOptimizerEditor : Editor
 		target2DImage = serializedObject.FindProperty("target2DImage");
 		target3DMesh = serializedObject.FindProperty("target3DMesh");
 		target3DCOLMAPFolder = serializedObject.FindProperty("target3DCOLMAPFolder");
-		targetMaterial = serializedObject.FindProperty("targetMaterial");
 		colmapRescaler = serializedObject.FindProperty("colmapRescaler");
 		colmapUseMasking = serializedObject.FindProperty("colmapUseMasking");
 		optimPrimitive = serializedObject.FindProperty("optimPrimitive");
 		primitiveCount = serializedObject.FindProperty("primitiveCount");
 		primitiveInitSize = serializedObject.FindProperty("primitiveInitSize");
 		primitiveInitSeed = serializedObject.FindProperty("primitiveInitSeed");
-		voxelGridMaxResolution = serializedObject.FindProperty("voxelGridMaxResolution");
-		materialResolution = serializedObject.FindProperty("materialResolution");
-		meshInitState = serializedObject.FindProperty("meshInitState");
-		meshInitSize = serializedObject.FindProperty("meshInitSize");
-		meshCatmullClarkSubdivisions = serializedObject.FindProperty("meshCatmullClarkSubdivisions");
-		meshCatmullClarkUseCreases = serializedObject.FindProperty("meshCatmullClarkUseCreases");
 		initPrimitivesOnMeshSurface = serializedObject.FindProperty("initPrimitivesOnMeshSurface");
 		colmapUseCameraBounds = serializedObject.FindProperty("colmapUseCameraBounds");
 		colmapOnePrimitivePerInitPoint = serializedObject.FindProperty("colmapOnePrimitivePerInitPoint");
@@ -125,8 +98,6 @@ public class MutationOptimizerEditor : Editor
 		transparencyMode = serializedObject.FindProperty("transparencyMode");
 		maxFragmentsPerPixel = serializedObject.FindProperty("maxFragmentsPerPixel");
 		alphaContributingCutoff = serializedObject.FindProperty("alphaContributingCutoff");
-		materialHeightMode = serializedObject.FindProperty("materialHeightMode");
-		targetTessellationResolution = serializedObject.FindProperty("targetTessellationResolution");
 		randomViewZoomRange = serializedObject.FindProperty("randomViewZoomRange");
 
 		reset = serializedObject.FindProperty("reset");
@@ -138,7 +109,6 @@ public class MutationOptimizerEditor : Editor
 
 		lrGlobalStartMulAndSpeed = serializedObject.FindProperty("lrGlobalStartMulAndSpeed");
 		lrGeometryStartMulAndSpeed = serializedObject.FindProperty("lrGeometryStartMulAndSpeed");
-		lrRegulStartMulAndSpeed = serializedObject.FindProperty("lrRegulStartMulAndSpeed");
 		doublingAmount = serializedObject.FindProperty("doublingAmount");
 		doubleEveryXSteps = serializedObject.FindProperty("doubleEveryXSteps");
 
@@ -155,18 +125,8 @@ public class MutationOptimizerEditor : Editor
 		beta1 = serializedObject.FindProperty("beta1");
 		beta2 = serializedObject.FindProperty("beta2");
 		learningRatePosition = serializedObject.FindProperty("learningRatePosition");
-		learningRateCrease = serializedObject.FindProperty("learningRateCrease");
-		learningRateUV = serializedObject.FindProperty("learningRateUV");
-		learningRateRotation = serializedObject.FindProperty("learningRateRotation");
-		learningRateScale = serializedObject.FindProperty("learningRateScale");
 		learningRateColor = serializedObject.FindProperty("learningRateColor");
 		learningRateAlpha = serializedObject.FindProperty("learningRateAlpha");
-		learningRateNormal = serializedObject.FindProperty("learningRateNormal");
-		learningRateMetallic = serializedObject.FindProperty("learningRateMetallic");
-		learningRateRoughness = serializedObject.FindProperty("learningRateRoughness");
-		learningRateHeight = serializedObject.FindProperty("learningRateHeight");
-		vertexRegularizerWeight = serializedObject.FindProperty("vertexRegularizerWeight");
-		vertexRegularizer2Weight = serializedObject.FindProperty("vertexRegularizer2Weight");
 
 		doPrimitiveResampling = serializedObject.FindProperty("doPrimitiveResampling");
 		resamplingInterval = serializedObject.FindProperty("resamplingInterval");
@@ -193,10 +153,8 @@ public class MutationOptimizerEditor : Editor
 		optimSupersampling.floatValue = math.max(optimSupersampling.floatValue, 1.0f / 8.0f);
 		viewsPerOptimStep.intValue = math.max(viewsPerOptimStep.intValue, 1);
 		targetResolution.vector2IntValue = new Vector2Int(math.max(targetResolution.vector2IntValue.x, 2), math.max(targetResolution.vector2IntValue.y, 2));
-		voxelGridMaxResolution.intValue = math.max(voxelGridMaxResolution.intValue, 2);
 		maxFragmentsPerPixel.intValue = math.max(maxFragmentsPerPixel.intValue, 1);
 		maxFragmentsPerPixel.intValue = math.min(maxFragmentsPerPixel.intValue, 64);
-		meshCatmullClarkSubdivisions.intValue = math.max(meshCatmullClarkSubdivisions.intValue, 0);
 		if (doAllInputFramesForEachOptimStep.boolValue == true && targetMode.enumValueIndex == 2 && colmapImageCount.intValue > 0)
 			viewsPerOptimStep.intValue = colmapImageCount.intValue;
 		if (optimPrimitive.enumValueIndex != 0 && optimPrimitive.enumValueIndex != 1 && optimPrimitive.enumValueIndex != 2 && optimPrimitive.enumValueIndex != 4)
@@ -221,18 +179,6 @@ public class MutationOptimizerEditor : Editor
 		{
 			parameterSeparationMode.enumValueIndex = 1;
 		}
-
-		if (optimPrimitive.enumValueIndex == 5)
-		{
-			meshCatmullClarkSubdivisions.intValue = math.max(meshCatmullClarkSubdivisions.intValue, 1);
-		}
-		if (optimPrimitive.enumValueIndex == 5 && materialHeightMode.enumValueIndex != 2)
-		{
-			meshCatmullClarkSubdivisions.intValue = 1;
-		}
-
-		if (meshCatmullClarkUseCreases.boolValue == false)
-			learningRateCrease.floatValue = 0.0f;
 
 		if (optimPrimitive.enumValueIndex == 5 || optimPrimitive.enumValueIndex == 6 || targetMode.enumValueIndex == 3)
 			sphericalHarmonicsMode.enumValueIndex = 0;
@@ -274,11 +220,6 @@ public class MutationOptimizerEditor : Editor
 			EditorGUILayout.PropertyField(colmapRescaler);
 			EditorGUILayout.PropertyField(colmapUseMasking);
 		}
-		else if (targetMode.enumValueIndex == 3)
-		{
-			EditorGUILayout.PropertyField(targetMaterial);
-			EditorGUILayout.PropertyField(targetTessellationResolution);
-		}
 		EditorGUILayout.PropertyField(optimPrimitive);
 		EditorGUILayout.PropertyField(primitiveInitSeed);
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4)
@@ -309,25 +250,6 @@ public class MutationOptimizerEditor : Editor
 				EditorGUILayout.PropertyField(alphaContributingCutoff);
 			}
 		}
-		if (optimPrimitive.enumValueIndex == 3)
-		{
-			EditorGUILayout.PropertyField(voxelGridMaxResolution);
-			EditorGUILayout.PropertyField(alphaContributingCutoff);
-		}
-		if (optimPrimitive.enumValueIndex == 6)
-		{
-			EditorGUILayout.PropertyField(meshInitState);
-			EditorGUILayout.PropertyField(meshCatmullClarkSubdivisions);
-			EditorGUILayout.PropertyField(meshCatmullClarkUseCreases);
-			EditorGUILayout.PropertyField(meshInitSize);
-		}
-		if (optimPrimitive.enumValueIndex == 5 || optimPrimitive.enumValueIndex == 6)
-		{
-			EditorGUILayout.PropertyField(materialResolution);
-			EditorGUILayout.PropertyField(materialHeightMode);
-			if (optimPrimitive.enumValueIndex ==  5 && materialHeightMode.enumValueIndex == 2)
-				EditorGUILayout.PropertyField(meshCatmullClarkSubdivisions);
-		}
 		if (targetMode.enumValueIndex == 1 || targetMode.enumValueIndex == 3)
 			EditorGUILayout.PropertyField(randomViewZoomRange);
 
@@ -349,12 +271,6 @@ public class MutationOptimizerEditor : Editor
 			needsToDoublePrimitives.boolValue = true;
 			//globalLearningRate.floatValue *= 0.85f;
 		}
-		if ((optimPrimitive.enumValueIndex == 5 || optimPrimitive.enumValueIndex == 6) && GUILayout.Button("Double Texture Resolution"))
-		{
-			materialResolution.intValue *= 2;
-			globalLearningRate.floatValue *= 0.85f;
-			learningRatePosition.floatValue *= 0.7f;
-		}
 		if (optimPrimitive.enumValueIndex == 3 && GUILayout.Button("Double Volume Resolution"))
 		{
 			needsToDoubleVolumeRes.boolValue = true;
@@ -370,8 +286,6 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(lrGlobalStartMulAndSpeed);
 		if (optimPrimitive.enumValueIndex != 3)
 			EditorGUILayout.PropertyField(lrGeometryStartMulAndSpeed);
-		if (optimPrimitive.enumValueIndex == 6)
-			EditorGUILayout.PropertyField(lrRegulStartMulAndSpeed);
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 3 || optimPrimitive.enumValueIndex == 4)
 		{
 			EditorGUILayout.PropertyField(doublingAmount);
@@ -402,31 +316,10 @@ public class MutationOptimizerEditor : Editor
 		{
 			EditorGUILayout.PropertyField(learningRatePosition);
 		}
-		if (optimPrimitive.enumValueIndex == 4)
-		{
-			EditorGUILayout.PropertyField(learningRateRotation);
-			EditorGUILayout.PropertyField(learningRateScale);
-		}
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
 		{
 			EditorGUILayout.PropertyField(learningRateAlpha);
-		}
-		if (optimPrimitive.enumValueIndex == 5 || optimPrimitive.enumValueIndex == 6)
-		{
-			EditorGUILayout.PropertyField(learningRateNormal);
-			EditorGUILayout.PropertyField(learningRateMetallic);
-			EditorGUILayout.PropertyField(learningRateRoughness);
-			if (materialHeightMode.enumValueIndex != 0)
-				EditorGUILayout.PropertyField(learningRateHeight);
-		}
-		if (optimPrimitive.enumValueIndex == 6)
-		{
-			//EditorGUILayout.PropertyField(learningRateUV);
-			if (meshCatmullClarkUseCreases.boolValue == true)
-				EditorGUILayout.PropertyField(learningRateCrease);
-			EditorGUILayout.PropertyField(vertexRegularizerWeight);
-			EditorGUILayout.PropertyField(vertexRegularizer2Weight);
 		}
 
 		// Resampling settings

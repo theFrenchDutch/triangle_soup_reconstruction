@@ -114,16 +114,9 @@ public class MutationOptimizer : MonoBehaviour
 	public string target3DCOLMAPFolder;
 	public float colmapRescaler = 1.0f;
 	public bool colmapUseMasking = false;
-	public Material targetMaterial;
 	public PrimitiveType optimPrimitive = PrimitiveType.TrianglesSolidUnlit;
 	public int primitiveCount = 1;
 	public float primitiveInitSize = 1.0f;
-	public int voxelGridMaxResolution = 64;
-	public int materialResolution = 64;
-	public Mesh meshInitState = null;
-	public float meshInitSize = 1.0f;
-	public int meshCatmullClarkSubdivisions = 0;
-	public bool meshCatmullClarkUseCreases = false;
 	public int primitiveInitSeed = -1;
 	public bool initPrimitivesOnMeshSurface = false;
 	public bool colmapUseCameraBounds = false;
@@ -146,7 +139,6 @@ public class MutationOptimizer : MonoBehaviour
 
 	public Vector2 lrGlobalStartMulAndSpeed = new Vector2(0, 0);
 	public Vector2 lrGeometryStartMulAndSpeed = new Vector2(0, 0);
-	public Vector2 lrRegulStartMulAndSpeed = new Vector2(0, 0);
 	public int doublingAmount = 0;
 	public int doubleEveryXSteps = 0;
 
@@ -164,18 +156,8 @@ public class MutationOptimizer : MonoBehaviour
 	[Range(0.0f, 1.0f)] public float beta1 = 0.9f;
 	[Range(0.0f, 1.0f)] public float beta2 = 0.999f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRatePosition = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateCrease = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateUV = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateRotation = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateScale = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateNormal = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateMetallic = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateRoughness = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateHeight = 0.01f;
-	[LogarithmicRange(0.0f, 0.01f, 10000.0f)] public float vertexRegularizerWeight = 0.01f;
-	[LogarithmicRange(0.0f, 0.01f, 10000.0f)] public float vertexRegularizer2Weight = 0.01f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -727,15 +709,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (parameterSeparationMode == ParameterOptimSeparationMode.None || dontDoSeparation == true)
 		{
 			mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateRotation", learningRateRotation * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateScale", learningRateScale * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateNormal", learningRateNormal * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateMetallic", learningRateMetallic * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateRoughness", learningRateRoughness * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateHeight", learningRateHeight * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateCrease", learningRateCrease * learningRateModifier);
 			if (parameterSeparationMode == ParameterOptimSeparationMode.None)
 				optimStepsSeparateCount = 1;
 			return;
@@ -743,15 +718,8 @@ public class MutationOptimizer : MonoBehaviour
 
 		// Disable all learning rates
 		mutationOptimizerCS.SetFloat("_LearningRatePosition", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateRotation", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateScale", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateColor", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateAlpha", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateNormal", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateMetallic", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateRoughness", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateHeight", 0.0f);
-		mutationOptimizerCS.SetFloat("_LearningRateCrease", 0.0f);
 
 		// Mesh SVBRDF special case
 		primitiveGroupToUse = 0;
