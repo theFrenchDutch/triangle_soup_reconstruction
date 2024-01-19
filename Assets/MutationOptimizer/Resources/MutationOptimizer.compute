@@ -50,7 +50,7 @@ int _MutationsPerFrame;
 int _OptimSuperSampling;
 int _CurrentMutation;
 RWStructuredBuffer<PrimitiveData> _PrimitiveBufferMutated;
-RWStructuredBuffer<int> _PrimitiveMutationError;
+RWStructuredBuffer<int2> _PrimitiveMutationError;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsOptimStep;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments2;
@@ -76,6 +76,7 @@ RWStructuredBuffer<uint> _ArgsResampling;
 RWStructuredBuffer<int> _SortedPrimitiveIDs;
 float3 _WorldSpaceCameraPos;
 float _CameraFarZ;
+float _CameraFovVRad;
 int _MaxFragmentsPerPixel;
 int _CurrentStochasticFrame;
 RWStructuredBuffer<int> _PerPixelFragmentCounter;
@@ -177,75 +178,6 @@ void AccumulateLossForVolume(uint2 pixelCoord, RWStructuredBuffer<int> _Primitiv
 
 void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff, Texture2D<float4> _DepthIDBuffer, inout int seenPrimitiveID, int avoidPrimitiveID = -1)
 {
-#ifdef VOLUME_TEXEL
-	AccumulateLossForVolume(pixelCoord, _PrimitiveMutationError, lossDiff);
-
-#elif SVBRDF_TEXEL
-	float4 infoBufferFetch = _DepthIDBuffer[pixelCoord];
-	int primitiveID = asuint(infoBufferFetch.r);
-#ifdef USE_CCS
-	if (primitiveID >= ccs_HalfedgeCount)
-		return;
-#else
-	if (primitiveID >= ccm_HalfedgeCount)
-		return;
-#endif
-	[branch] if (_LearningRateColor > 0.0 || _LearningRateNormal > 0.0 || _LearningRateMetallic > 0.0 || _LearningRateRoughness > 0.0) // Do material maps
-	{
-		int2 primitiveCoord = clamp(infoBufferFetch.wz * _SVBRDFResolution, 0, _SVBRDFResolution - 1);
-		seenPrimitiveID = primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x;
-		if (seenPrimitiveID == avoidPrimitiveID)
-			return;
-		InterlockedAdd(_PrimitiveMutationError[primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x], lossDiff);
-		//TextureMarchLossAccumForPixel(infoBufferFetch.zw, _PrimitiveMutationError, lossDiff);
-	}
-	[branch] if (_LearningRateHeight > 0.0) // Do height map
-	{
-		int subdID = 0;
-		int ccDepth = 1 + (u_UniformModeDepth >> 1);
-		uint halfedgeID = primitiveID;
-		for (int i = 0; i < 3; i++)
-		{
-#ifdef USE_CCS
-			float2 uv = ccs_HalfedgeVertexUv(subdID, halfedgeID, ccDepth);
-			halfedgeID = ccs_HalfedgeNextID(subdID, halfedgeID, ccDepth);
-#else
-			float2 uv = ccm_HalfedgeVertexUv(subdID, halfedgeID);
-			halfedgeID = ccm_HalfedgeNextID(subdID, halfedgeID);
-#endif
-			int2 primitiveCoord = clamp(uv.yx * _SVBRDFResolution, 0, _SVBRDFResolution - 1);
-			seenPrimitiveID = primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x;
-			if (seenPrimitiveID == avoidPrimitiveID)
-				return;
-			InterlockedAdd(_PrimitiveMutationError[primitiveCoord.y * _SVBRDFResolution + primitiveCoord.x], lossDiff);
-			//TextureMarchLossAccumForPixel(uv, _PrimitiveMutationError, lossDiff);
-		}
-	}
-
-#elif MESH_VERTEX
-	float4 infoBufferFetch = _DepthIDBuffer[pixelCoord];
-	int primitiveID = asuint(infoBufferFetch.r);
-	seenPrimitiveID = primitiveID;
-	if (primitiveID >= ccm_HalfedgeCount || seenPrimitiveID == avoidPrimitiveID)
-		return;
-	int subdID = 0;
-	uint halfedgeID = primitiveID;
-	for (int i = 0; i < 3; i++)
-	{
-		if (_LearningRatePosition > 0.0) // VERTEX OPTIM
-		{
-			int vertexID = ccm_HalfedgeVertexID(subdID, halfedgeID);
-			InterlockedAdd(_PrimitiveMutationError[vertexID], lossDiff);
-		}
-		else if (_LearningRateCrease > 0.0) // CREASE OPTIM
-		{
-			int edgeID = ccm_HalfedgeEdgeID(subdID, halfedgeID);
-			InterlockedAdd(_PrimitiveMutationError[edgeID], lossDiff);
-		}
-		halfedgeID = ccm_HalfedgeNextID(subdID, halfedgeID);
-	}
-
-#else // TRIANGLE SOUPS AND GAUSSIAN SPLATS
 #ifdef OPAQUE_RENDER
 	float4 depthIDBufferFetch = _DepthIDBuffer[pixelCoord];
 	int primitiveID = asuint(depthIDBufferFetch.r);
@@ -253,7 +185,7 @@ void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff,
 	if (primitiveID >= _PrimitiveCount || seenPrimitiveID == avoidPrimitiveID)
 		return;
 	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
-	//InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
 
 #elif SORTED_ALPHA_RENDER
 	int visibleFragmentCount = _PerPixelFragmentCounter[flatPixelCoord];
@@ -271,7 +203,6 @@ void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff,
 		uint primitiveID = asuint(depthIDBufferFetch.r);
 		InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
 	}
-#endif
 #endif
 }
 
@@ -380,11 +311,11 @@ void ApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	GetLearningRatesFloatArray(learningRatesFloats);
 
 	// Normalize gradients by pixel counts and reset them
-	/*int pixelCount = _PrimitiveMutationError[threadID].y;
+	int pixelCount = _PrimitiveMutationError[threadID].y;
 	if (pixelCount > 0)
 		for (int i = 0; i < PRIMITIVE_SIZE; i++)
 			mutationGradientsFloats[i] /= (float)pixelCount;
-	_PrimitiveMutationError[threadID].y = 0;*/
+	_PrimitiveMutationError[threadID].y = 0;
 
 	// Apply gradients
 	if (_OptimizerMode == 0) // RMS PROP
@@ -460,6 +391,12 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 	// Get current primitive data
 	PrimitiveData primitiveData = _PrimitiveBuffer[threadID];
 
+	// Compute world space pixel size at primitive pos for current view point
+	float3 centerPos = (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0;
+	float d = centerPos - _WorldSpaceCameraPos;
+	float screenSize = 2 * tan(_CameraFovVRad / 2.0) * d;
+	float pixelSize = screenSize / _OutputHeight;
+
 	// Convert to primitive agnostic float arrays
 	float primitiveDataFloats[PRIMITIVE_SIZE];
 	float learningRatesFloats[PRIMITIVE_SIZE];
@@ -473,7 +410,13 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 			continue;
 		float randomMutation = GetRandomFloat(rngState);
 		randomMutation *= _IsAntitheticMutation > 0.5 ? -1.0 : 1.0;
-		randomMutation *= learningRatesFloats[i];
+
+		// Custom mutation magnitudes
+		if (learningRatesFloats[i] == _LearningRatePosition)
+			randomMutation *= pixelSize;
+		else
+			randomMutation *= learningRatesFloats[i];
+
 		primitiveDataFloats[i] += randomMutation;
 	}
 
@@ -530,8 +473,8 @@ void ListValidAndInvalidPrimitiveIDs(uint3 id : SV_DispatchThreadID)
 
 	// Do skybox removal test
 	/*PrimitiveData gradients = _PrimitiveGradientsMoments1[primitiveID];
-	float colorGradientMagnitude = gradients.color.r + gradients.color.g + gradients.color.b;
-	if (colorGradientMagnitude > 20000)
+	float posGradientMagnitude = gradients.positions[0].x + gradients.positions[0].y + gradients.positions[0].z + gradients.positions[1].x + gradients.positions[1].y + gradients.positions[1].z + gradients.positions[2].x + gradients.positions[2].y + gradients.positions[2].z;
+	if (posGradientMagnitude > 10)
 		isValid = false;*/
 
 	// Do bounds trimming test
@@ -543,6 +486,11 @@ void ListValidAndInvalidPrimitiveIDs(uint3 id : SV_DispatchThreadID)
 	{
 		doSubdivide = false;
 	}*/
+
+	// Random removal test
+	/*float rand = WangHash((_CurrentFrame * _PrimitiveCount) + threadID) * (1.0 / 4294967296.0);
+	if (rand < 0.1)
+		isValid = false;*/
 
 	// Take into account visibility
 //#ifdef OPAQUE_RENDER

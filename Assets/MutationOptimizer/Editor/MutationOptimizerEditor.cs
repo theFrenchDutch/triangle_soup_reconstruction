@@ -222,7 +222,7 @@ public class MutationOptimizerEditor : Editor
 		}
 		EditorGUILayout.PropertyField(optimPrimitive);
 		EditorGUILayout.PropertyField(primitiveInitSeed);
-		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4)
+		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2)
 		{
 			EditorGUILayout.PropertyField(primitiveCount);
 			EditorGUILayout.PropertyField(primitiveInitSize);

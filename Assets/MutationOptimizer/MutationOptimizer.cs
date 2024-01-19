@@ -811,6 +811,8 @@ public class MutationOptimizer : MonoBehaviour
 
 	public void CreateNewRandomMutation()
 	{
+		mutationOptimizerCS.SetVector("_WorldSpaceCameraPos", cameraOptim.transform.position);
+		mutationOptimizerCS.SetFloat("_CameraFovVRad", cameraOptim.fieldOfView * Mathf.Deg2Rad);
 		mutationOptimizerCS.SetBuffer(kernelCreateNewRandomMutation, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
 		mutationOptimizerCS.SetBuffer(kernelCreateNewRandomMutation, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
 		DispatchCompute1D(mutationOptimizerCS, kernelCreateNewRandomMutation, primitiveBuffer[primitiveGroupToUse].count, 256);
@@ -1208,7 +1210,7 @@ public class MutationOptimizer : MonoBehaviour
 		gradientMoments1Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		gradientMoments2Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		primitiveBufferMutated[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
-		optimStepMutationError[0] = new ComputeBuffer(primitiveCount, sizeof(int));// * 2);
+		optimStepMutationError[0] = new ComputeBuffer(primitiveCount, sizeof(int) * 2);
 		optimStepCounterBuffer[0] = new ComputeBuffer(primitiveCount, sizeof(int));
 		primitiveKillCounters = new ComputeBuffer(primitiveCount, sizeof(int));
 		ZeroInitBuffer(optimStepGradientsBuffer[0]);
@@ -1670,7 +1672,7 @@ public class MutationOptimizer : MonoBehaviour
 		}
 
 		// Read COLMAP reconstructed points
-		if (File.Exists(folderPath + "/sparse/0/points3D.bin") == true)
+		if (initPrimitivesOnMeshSurface == true && File.Exists(folderPath + "/sparse/0/points3D.bin") == true)
 		{
 			reader = new BinaryReader(File.Open(folderPath + "/sparse/0/points3D.bin", FileMode.Open, FileAccess.Read, FileShare.Read));
 			int pointCount = (int)reader.ReadUInt64();

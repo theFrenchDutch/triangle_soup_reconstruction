@@ -162,15 +162,15 @@ MonoBehaviour:
   targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: boat
+  target3DCOLMAPFolder: m60
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
   primitiveCount: 1000
-  primitiveInitSize: 0.001
+  primitiveInitSize: 0.1
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 1
-  colmapUseCameraBounds: 0
+  colmapUseCameraBounds: 1
   colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 0.5
@@ -181,21 +181,21 @@ MonoBehaviour:
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 1.5, y: 2}
   reset: 0
-  pause: 0
+  pause: 1
   stepForward: 0
   displayMode: 0
-  separateFreeViewCamera: 0
+  separateFreeViewCamera: 1
   displayCatmullClarkControlCage: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 0, y: 0.0005}
+  lrGeometryStartMulAndSpeed: {x: 0, y: 0}
   doublingAmount: 0
-  doubleEveryXSteps: 500
+  doubleEveryXSteps: 200
   optimizer: 1
-  gradientsWarmupSteps: 16
-  optimSupersampling: 0.25
-  doAlphaLoss: 1
+  gradientsWarmupSteps: 0
+  optimSupersampling: 0.5
+  doAlphaLoss: 0
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 16
+  viewsPerOptimStep: 128
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
@@ -205,7 +205,7 @@ MonoBehaviour:
   learningRatePosition: 0.001
   learningRateColor: 0.01
   learningRateAlpha: 0
-  doPrimitiveResampling: 1
+  doPrimitiveResampling: 0
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 4
   minPrimitiveWorldArea: 0.0001
