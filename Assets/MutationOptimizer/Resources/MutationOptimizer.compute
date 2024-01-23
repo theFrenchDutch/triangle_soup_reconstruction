@@ -1,4 +1,4 @@
-﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN ENVMAP_TEXEL
 #pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 #pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
 #include "OptimizerPrimitives.hlsl"
@@ -397,7 +397,7 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 	float screenSize = 2 * tan(_CameraFovVRad / 2.0) * d;
 	float pixelSize = screenSize / _OutputHeight;
 
-	// Convert to primitive agnostic float arrays
+	// Convert to primitive agnostic float arrays // TODO : remove
 	float primitiveDataFloats[PRIMITIVE_SIZE];
 	float learningRatesFloats[PRIMITIVE_SIZE];
 	GetPrimitiveAsFloatArray(primitiveData, primitiveDataFloats);

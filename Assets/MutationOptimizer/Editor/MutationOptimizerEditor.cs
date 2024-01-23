@@ -30,6 +30,8 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty maxFragmentsPerPixel;
 	SerializedProperty alphaContributingCutoff;
 	SerializedProperty randomViewZoomRange;
+	SerializedProperty optimizeEnvMap;
+	SerializedProperty envMapResolution;
 
 	SerializedProperty reset;
 	SerializedProperty pause;
@@ -99,6 +101,8 @@ public class MutationOptimizerEditor : Editor
 		maxFragmentsPerPixel = serializedObject.FindProperty("maxFragmentsPerPixel");
 		alphaContributingCutoff = serializedObject.FindProperty("alphaContributingCutoff");
 		randomViewZoomRange = serializedObject.FindProperty("randomViewZoomRange");
+		optimizeEnvMap = serializedObject.FindProperty("optimizeEnvMap");
+		envMapResolution = serializedObject.FindProperty("envMapResolution");
 
 		reset = serializedObject.FindProperty("reset");
 		pause = serializedObject.FindProperty("pause");
@@ -252,6 +256,8 @@ public class MutationOptimizerEditor : Editor
 		}
 		if (targetMode.enumValueIndex == 1 || targetMode.enumValueIndex == 3)
 			EditorGUILayout.PropertyField(randomViewZoomRange);
+		EditorGUILayout.PropertyField(optimizeEnvMap);
+		EditorGUILayout.PropertyField(envMapResolution);
 
 		// Controls
 		EditorGUILayout.Space();

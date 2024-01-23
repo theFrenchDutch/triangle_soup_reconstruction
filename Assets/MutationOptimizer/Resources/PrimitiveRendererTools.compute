@@ -95,7 +95,8 @@ void ResolveOpaqueRender(uint3 threadID : SV_DispatchThreadID)
 	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
 	float4 depthIDBufferFetch = _DepthIDBufferRW[pixelCoord];
 	uint primitiveID = asuint(depthIDBufferFetch.r);
-//#ifndef MESH_VERTEX
+
+	// Hit a primitive
 	if (primitiveID < _PrimitiveCount)
 	{
 		float4 newColor = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[primitiveID], FloatToFloat3(depthIDBufferFetch.g), Unpack16FloatsFrom32(depthIDBufferFetch.a)));
@@ -115,19 +116,6 @@ void ResolveOpaqueRender(uint3 threadID : SV_DispatchThreadID)
 		_PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + _CurrentStochasticFrame] = depthIDBufferFetch;
 	#endif
 	}
-//#else
-//	if (primitiveID < _MeshOptimTriangleCount)
-//	{
-//		float4 newColorA = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 0]], 0.0.rr));
-//		float4 newColorB = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 1]], 0.0.rr));
-//		float4 newColorC = LinearToGammaRGB(FetchColorFromPrimitive(_PrimitiveBuffer[_MeshOptimTriangleBuffer[primitiveID * 3 + 2]], 0.0.rr));
-//		float2 tempBarycentric = Unpack16FloatsFrom32(depthIDBufferFetch.a);
-//		float3 barycentric = float3(tempBarycentric.r, tempBarycentric.g, 1.0 - (tempBarycentric.r + tempBarycentric.g));
-//		float4 newColor = newColorA * barycentric.x + newColorB * barycentric.y + newColorC * barycentric.z;
-//		newColor.a = 1.0;
-//		_ResolvedFrameRW[pixelCoord] = newColor;
-//	}
-//#endif
 }
 
 [numthreads(16, 16, 1)]

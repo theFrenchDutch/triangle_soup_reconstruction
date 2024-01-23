@@ -785,3 +785,98 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 	return true;
 }
 #endif
+
+
+
+
+// ======================= TRIANGLE SOUP GAUSSIAN =======================
+#ifdef ENVMAP_TEXEL
+struct PrimitiveData
+{
+	float3 color;
+};
+
+float _EnvMapResolution;
+
+PrimitiveData ZeroInitPrimitiveData()
+{
+	PrimitiveData primitiveData;
+	primitiveData.color = float3(0, 0, 0);
+	return primitiveData;
+}
+
+PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
+{
+	PrimitiveData primitiveData;
+	primitiveData.color = float3(asArray[0], asArray[1], asArray[2]);
+	return primitiveData;
+}
+
+void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
+{
+	asArray[0] = primitiveData.color.x;
+	asArray[1] = primitiveData.color.y;
+	asArray[2] = primitiveData.color.z;
+}
+
+void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
+{
+	asArray[0] = _LearningRateColor;
+	asArray[1] = _LearningRateColor;
+	asArray[2] = _LearningRateColor;
+}
+
+float2 OctahedralMapping(float3 direction)
+{
+	direction = direction.xzy;
+	float3 octant = sign(direction);
+
+	// Scale the vector so |x| + |y| + |z| = 1 (surface of octahedron).
+	float sum = dot(direction, octant);
+	float3 octahedron = direction / sum;
+
+	// "Untuck" the corners using the same reflection across the diagonal as before.
+	// (A reflection is its own inverse transformation).
+	if (octahedron.z < 0)
+	{
+		float3 absolute = abs(octahedron);
+		octahedron.xy = octant.xy * float2(1.0f - absolute.y, 1.0f - absolute.x);
+	}
+
+	float2 uv = octahedron.xy * 0.5f + 0.5f;
+	uv.y = 1.0 - uv.y;
+	return uv;
+}
+
+float3 SampleEnvMapPrimitiveBuffer(StructuredBuffer<PrimitiveData> envMapBuffer, float3 worldViewDir)
+{
+	float2 pixelUV = OctahedralMapping(worldViewDir);
+	//float halfTexel = 1.0 / (float)_EnvMapResolution;
+	//pixelUV = Remap(pixelUV, 0.0 + halfTexel, 1.0 - halfTexel, 0.0, 1.0);
+	int2 texel00 = pixelUV.xy * (_EnvMapResolution - 1);
+	int2 texel01 = texel00 + int2(0, 1);
+	int2 texel10 = texel00 + int2(1, 0);
+	int2 texel11 = texel00 + int2(1, 1);
+
+	float3 col00 = envMapBuffer[texel00.y * _EnvMapResolution + texel00.x].color;
+	float3 col01 = envMapBuffer[texel01.y * _EnvMapResolution + texel01.x].color;
+	float3 col10 = envMapBuffer[texel10.y * _EnvMapResolution + texel10.x].color;
+	float3 col11 = envMapBuffer[texel11.y * _EnvMapResolution + texel11.x].color;
+
+	float2 texelLerp = (pixelUV.xy * (_EnvMapResolution - 1)) - texel00;
+	float3 colA = lerp(col00, col10, texelLerp.x);
+	float3 colB = lerp(col01, col11, texelLerp.x);
+	float3 col = lerp(colA, colB, texelLerp.y);
+	return col;
+}
+
+float4 FetchColorFromPrimitive(PrimitiveData primitiveData, float3 viewDir = float3(0, 0, 1), float2 barycentricXY = float2(0, 0))
+{
+	return float4(primitiveData.color.rgb, 1);
+}
+
+void PostProcessPrimitive(inout PrimitiveData primitiveData)
+{
+	primitiveData.color = clamp(primitiveData.color, 0.0, 1.0);
+}
+#endif

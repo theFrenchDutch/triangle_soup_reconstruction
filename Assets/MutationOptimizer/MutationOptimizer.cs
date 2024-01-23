@@ -23,6 +23,7 @@ public class MutationOptimizer : MonoBehaviour
 	public RenderTexture resolvedFrameMutatedPlus;
 	public RenderTexture targetFrameBuffer;
 	private Material rasterMaterial;
+	private Material envMapMaterial;
 	private Camera cameraDisplay;
 	private Camera cameraOptim;
 	private ComputeShader primitiveRendererCS;
@@ -129,6 +130,8 @@ public class MutationOptimizer : MonoBehaviour
 	public int maxFragmentsPerPixel = 1;
 	[Range(0.0f, 1.0f)] public float alphaContributingCutoff = 0.9f;
 	public Vector2 randomViewZoomRange = Vector2.one;
+	public bool optimizeEnvMap = false;
+	public int envMapResolution = 256;
 
 	public bool reset = false;
 	public bool pause = false;
@@ -205,7 +208,7 @@ public class MutationOptimizer : MonoBehaviour
 		kernelBitonicSortValidPrimitives = mutationOptimizerCS.FindKernel("BitonicSortValidPrimitives");
 		kernelPairResampling = mutationOptimizerCS.FindKernel("PairResampling");
 
-		int primitiveGroupCount = 1;
+		int primitiveGroupCount = optimizeEnvMap == true ? 2 : 1;
 		primitiveBuffer = new ComputeBuffer[primitiveGroupCount];
 		optimStepGradientsBuffer = new ComputeBuffer[primitiveGroupCount];
 		gradientMoments1Buffer = new ComputeBuffer[primitiveGroupCount];
@@ -548,7 +551,26 @@ public class MutationOptimizer : MonoBehaviour
 		{
 			Vector3 cameraPos = Camera.current.transform.position;
 			Matrix4x4 cameraVP = GL.GetGPUProjectionMatrix(Camera.current.projectionMatrix, true) * Camera.current.worldToCameraMatrix;
-			rasterMaterial.SetVector("_CurrentCameraWorldPos", Camera.current.transform.position);
+
+			// Draw env map first
+			if (optimizeEnvMap == true)
+			{
+				Matrix4x4 invCameraVP = cameraVP.inverse;
+				envMapMaterial.SetInt("_EnvMapResolution", envMapResolution);
+				envMapMaterial.SetMatrix("_CameraInvVP", invCameraVP);
+				envMapMaterial.SetVector("_CurrentCameraWorldPos", cameraPos);
+				envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBuffer[1]);
+				envMapMaterial.SetPass(0);
+				GL.Begin(GL.QUADS);
+				GL.Color(Color.red);
+				GL.Vertex3(-1, -1, 0);
+				GL.Vertex3(-1, 1, 0);
+				GL.Vertex3(1, 1, 0);
+				GL.Vertex3(1, -1, 0);
+				GL.End();
+			}
+
+			rasterMaterial.SetVector("_CurrentCameraWorldPos", cameraPos);
 			rasterMaterial.SetFloat("_SimpleColorRender", 1.0f);
 			rasterMaterial.SetInt("_PrimitiveCount", primitiveBuffer[0].count);
 			rasterMaterial.SetMatrix("_CameraMatrixVP", cameraVP);
@@ -579,6 +601,17 @@ public class MutationOptimizer : MonoBehaviour
 		// Clear resolve target
 		primitiveRendererCS.SetTexture(kernelClearRenderTarget, "_ResolvedFrameRW", renderTargetToUse);
 		primitiveRendererCS.Dispatch(kernelClearRenderTarget, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
+
+		// Pre-blit env map to resolve target // TODO : won't work with Sorted Alpha
+		if (optimizeEnvMap == true)
+		{
+			Matrix4x4 invCameraVP = cameraVP.inverse;
+			envMapMaterial.SetInt("_EnvMapResolution", envMapResolution);
+			envMapMaterial.SetMatrix("_CameraInvVP", invCameraVP);
+			envMapMaterial.SetVector("_CurrentCameraWorldPos", cameraToUse.transform.position);
+			envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBufferToUse);
+			Graphics.Blit(null, renderTargetToUse, envMapMaterial);
+		}
 
 		// Render primitives ID+Depth
 		rasterMaterial.SetFloat("_SimpleColorRender", 0.0f);
@@ -1109,6 +1142,12 @@ public class MutationOptimizer : MonoBehaviour
 		// Primitive buffer
 		InitPrimitiveBuffer();
 
+		// Special Env Map mode
+		if (optimizeEnvMap == true)
+		{
+			InitEnvMapPrimitiveBuffer(ref primitiveBuffer[1]);
+		}
+
 		cameraDisplay.GetComponent<OrbitCamera>().target = mesh3DSceneBounds;
 		ResetKeywords(primitiveRendererCS, true, true, true);
 		ResetKeywords(mutationOptimizerCS, true, true, true);
@@ -1169,6 +1208,8 @@ public class MutationOptimizer : MonoBehaviour
 			rasterMaterial = new Material(Shader.Find("Custom/TrianglePrimitiveRaster"));
 		}
 		rasterMaterial.hideFlags = HideFlags.DontSave;
+		envMapMaterial = new Material(Shader.Find("Custom/EnvMapPrimitiveRaster"));
+		envMapMaterial.hideFlags = HideFlags.DontSave;
 
 		// Init everything
 		RenderTextureFormat resolveFormat = (transparencyMode == TransparencyMode.StochasticAlpha) ? RenderTextureFormat.ARGBFloat : RenderTextureFormat.ARGB32;
@@ -1219,6 +1260,24 @@ public class MutationOptimizer : MonoBehaviour
 		ZeroInitBuffer(primitiveBufferMutated[0]);
 		ZeroInitBuffer(optimStepMutationError[0]);
 		ZeroInitBuffer(optimStepCounterBuffer[0]);
+
+		// Special Env Map mode
+		if (optimizeEnvMap == true)
+		{
+			int primitiveByteSize2 = 3 * 4;
+			optimStepGradientsBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
+			gradientMoments1Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
+			gradientMoments2Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
+			primitiveBufferMutated[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
+			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));// * 2);
+			optimStepCounterBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));
+			ZeroInitBuffer(optimStepGradientsBuffer[1]);
+			ZeroInitBuffer(gradientMoments1Buffer[1]);
+			ZeroInitBuffer(gradientMoments2Buffer[1]);
+			ZeroInitBuffer(primitiveBufferMutated[1]);
+			ZeroInitBuffer(optimStepMutationError[1]);
+			ZeroInitBuffer(optimStepCounterBuffer[1]);
+		}
 
 		// Init kill counters
 		if (true)
@@ -2537,6 +2596,23 @@ public class MutationOptimizer : MonoBehaviour
 		}
 	}
 
+	public void InitEnvMapPrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit)
+	{
+		EnvMapTexel[] randData = new EnvMapTexel[envMapResolution * envMapResolution];
+		for (int i = 0; i < envMapResolution * envMapResolution; i++)
+		{
+			EnvMapTexel newTexel;
+			Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
+			newTexel.color = new float3(randColor.r, randColor.g, randColor.b);
+			//newTexel.color = new float3(1.0f, 1.0f, 1.0f);
+			//newTexel.color = new float3(0.5f, 0.5f, 0.5f);
+			//newTexel.color = new float3(0.0f, 0.0f, 0.0f);
+			randData[i] = newTexel;
+		}
+		primitiveBufferToInit = new ComputeBuffer(envMapResolution * envMapResolution, System.Runtime.InteropServices.Marshal.SizeOf(typeof(EnvMapTexel)));
+		primitiveBufferToInit.SetData(randData);
+	}
+
 
 
 
@@ -2593,6 +2669,11 @@ public class MutationOptimizer : MonoBehaviour
 
 
 	// ======================= TYPES =======================
+	public struct EnvMapTexel
+	{
+		public float3 color;
+	};
+
 	public struct SHColor
 	{
 		public float alpha;
