@@ -14,13 +14,12 @@ Shader "Custom/EnvMapPrimitiveRaster"
 			#pragma vertex vert
 			#pragma fragment frag
 			#include "UnityCG.cginc"
-			#define ENVMAP_TEXEL
-			#define SINGLE_COLOR
 			#include "OptimizerPrimitives.hlsl"
 
-			StructuredBuffer<PrimitiveData> _EnvMapPrimitiveBuffer;
+			StructuredBuffer<float3> _EnvMapPrimitiveBuffer;
 			float4x4 _CameraInvVP;
 			float3 _CurrentCameraWorldPos;
+			float _DoColorOrViewDir;
 
 			struct appdata
 			{
@@ -50,8 +49,10 @@ Shader "Custom/EnvMapPrimitiveRaster"
 
 			float4 frag(v2f i) : SV_Target
 			{
-				//return float4(1, 0, 0, 1);
-				return float4(SampleEnvMapPrimitiveBuffer(_EnvMapPrimitiveBuffer, i.worldViewDir), 1);
+				if (_DoColorOrViewDir < 0.5)
+					return float4(SampleEnvMapPrimitiveBuffer(_EnvMapPrimitiveBuffer, i.worldViewDir), 1);
+				else
+					return float4(asfloat(4294967295), i.worldViewDir);
 			}
 			ENDCG
 		}

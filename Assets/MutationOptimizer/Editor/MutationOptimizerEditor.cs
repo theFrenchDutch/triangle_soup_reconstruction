@@ -60,6 +60,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty learningRatePosition;
 	SerializedProperty learningRateColor;
 	SerializedProperty learningRateAlpha;
+	SerializedProperty learningRateEnvMap;
 
 	SerializedProperty doPrimitiveResampling;
 	SerializedProperty resamplingInterval;
@@ -131,6 +132,7 @@ public class MutationOptimizerEditor : Editor
 		learningRatePosition = serializedObject.FindProperty("learningRatePosition");
 		learningRateColor = serializedObject.FindProperty("learningRateColor");
 		learningRateAlpha = serializedObject.FindProperty("learningRateAlpha");
+		learningRateEnvMap = serializedObject.FindProperty("learningRateEnvMap");
 
 		doPrimitiveResampling = serializedObject.FindProperty("doPrimitiveResampling");
 		resamplingInterval = serializedObject.FindProperty("resamplingInterval");
@@ -273,18 +275,11 @@ public class MutationOptimizerEditor : Editor
 		if (optimPrimitive.enumValueIndex == 6)
 			EditorGUILayout.PropertyField(displayCatmullClarkControlCage);
 		if ((optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4) && GUILayout.Button("Double Primitive Count"))
-		{
 			needsToDoublePrimitives.boolValue = true;
-			//globalLearningRate.floatValue *= 0.85f;
-		}
 		if (optimPrimitive.enumValueIndex == 3 && GUILayout.Button("Double Volume Resolution"))
-		{
 			needsToDoubleVolumeRes.boolValue = true;
-		}
 		if (pause.boolValue == true && GUILayout.Button("Custom Export Button"))
-		{
 			needsToCustomExport.boolValue = true;
-		}
 
 		// Scheduling Controls
 		EditorGUILayout.Space();
@@ -319,14 +314,12 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(beta1);
 		EditorGUILayout.PropertyField(beta2);
 		if (optimPrimitive.enumValueIndex != 3 && optimPrimitive.enumValueIndex != 5)
-		{
 			EditorGUILayout.PropertyField(learningRatePosition);
-		}
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
-		{
 			EditorGUILayout.PropertyField(learningRateAlpha);
-		}
+		if (optimizeEnvMap.boolValue == true)
+			EditorGUILayout.PropertyField(learningRateEnvMap);
 
 		// Resampling settings
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4)

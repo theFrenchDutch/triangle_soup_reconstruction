@@ -58,7 +58,6 @@ public class MutationOptimizer : MonoBehaviour
 	public int currentOptimStep = 0;
 	private int currentStochasticFrame = 0;
 	private Color depthIDClearColor = new Color(4294967295, 0, 0, 0);
-	private int primitiveGroupToUse = 0;
 	private Stopwatch systemTimer = new Stopwatch();
 	private int optimStepsSeparateCount = 1;
 	private float2 learningRateGlobalStartEnd = -1.0f;
@@ -84,6 +83,11 @@ public class MutationOptimizer : MonoBehaviour
 	private int kernelAccumulateMutationGradientsResetLoss;
 	private int kernelApplyRandomMutation;
 	private int kernelCreateNewRandomMutation;
+	private int kernelEnvMapResetMutationLossAccumulation;
+	private int kernelEnvMapAccumulateMutationLoss;
+	private int kernelEnvMapAccumulateMutationGradientsResetLoss;
+	private int kernelEnvMapApplyRandomMutation;
+	private int kernelEnvMapCreateNewRandomMutation;
 	private int kernelResetVisibilityCounter;
 	private int kernelDecrementVisibilityCounter;
 	private int kernelListValidAndInvalidPrimitiveIDs;
@@ -161,6 +165,7 @@ public class MutationOptimizer : MonoBehaviour
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRatePosition = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
+	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -200,6 +205,11 @@ public class MutationOptimizer : MonoBehaviour
 		kernelAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("AccumulateMutationGradientsResetLoss");
 		kernelApplyRandomMutation = mutationOptimizerCS.FindKernel("ApplyRandomMutation");
 		kernelCreateNewRandomMutation = mutationOptimizerCS.FindKernel("CreateNewRandomMutation");
+		kernelEnvMapResetMutationLossAccumulation = mutationOptimizerCS.FindKernel("EnvMapResetMutationLossAccumulation");
+		kernelEnvMapAccumulateMutationLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationLoss");
+		kernelEnvMapAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationGradientsResetLoss");
+		kernelEnvMapApplyRandomMutation = mutationOptimizerCS.FindKernel("EnvMapApplyRandomMutation");
+		kernelEnvMapCreateNewRandomMutation = mutationOptimizerCS.FindKernel("EnvMapCreateNewRandomMutation");
 		kernelResetVisibilityCounter = mutationOptimizerCS.FindKernel("ResetVisibilityCounter");
 		kernelDecrementVisibilityCounter = mutationOptimizerCS.FindKernel("DecrementVisibilityCounter");
 		kernelListValidAndInvalidPrimitiveIDs = mutationOptimizerCS.FindKernel("ListValidAndInvalidPrimitiveIDs");
@@ -262,7 +272,8 @@ public class MutationOptimizer : MonoBehaviour
 			ResetKeywords(primitiveRendererCS, true, true, true);
 			ResetKeywords(mutationOptimizerCS, true, true, true);
 			ResetKeywords(rasterMaterial, true, true, true);
-			ResetOptimizationStep();
+			ResetOptimizationStep(0);
+			ResetOptimizationStep(1);
 		}
 
 		// Handle live re-compile of compute shader
@@ -365,17 +376,23 @@ public class MutationOptimizer : MonoBehaviour
 					SetOptimizerLearningRatesAndGetSeparateCount(k, false);
 
 					// Minus Epsilon
-					CreateNewRandomMutation();
+					CreateNewRandomMutation(0);
+					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+						CreateNewRandomMutation(1);
 					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 1.0f);
 					RenderOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedMinus, optimRenderTargetMutatedMinus, true, j == 0 ? true : false);
 
 					// Plus Epsilon
-					CreateNewRandomMutation();
+					CreateNewRandomMutation(0);
+					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+						CreateNewRandomMutation(1);
 					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 0.0f);
 					RenderOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedPlus, optimRenderTarget, true, false);
 
 					// Accumulate Gradients
-					AccumulateOptimizationStep();
+					AccumulateOptimizationStep(0);
+					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+						AccumulateOptimizationStep(1);
 				}
 			}
 
@@ -387,23 +404,17 @@ public class MutationOptimizer : MonoBehaviour
 		{
 			// Apply accumulated gradient for this optim step
 			SetOptimizerLearningRatesAndGetSeparateCount(0, true); // Set full optim learning rates
-			primitiveGroupToUse = 0;
 			ResetKeywords(mutationOptimizerCS, true, true, true);
-			ApplyOptimizationStep();
+			ApplyOptimizationStep(0);
 			if (currentOptimStep > 1)
-				PerformPrimitiveResampling();
-			ResetOptimizationStep();
+				PerformPrimitiveResampling(0);
+			ResetOptimizationStep(0);
 
-			// We have two full separate setups in Model case for geometry and textures, need to apply/reset twice
-			//if (ENVMAP)
-			//{
-			//	primitiveGroupToUse = 1;
-			//	ResetKeywords(mutationOptimizerCS, true, true, true);
-			//	ApplyOptimizationStep();
-			//	ResetOptimizationStep();
-			//	primitiveGroupToUse = 0;
-			//	ResetKeywords(mutationOptimizerCS, true, true, true);
-			//}
+			if (optimizeEnvMap == true)
+			{
+				ApplyOptimizationStep(1);
+				ResetOptimizationStep(1);
+			}
 		}
 
 		// Metrics
@@ -602,7 +613,7 @@ public class MutationOptimizer : MonoBehaviour
 		primitiveRendererCS.SetTexture(kernelClearRenderTarget, "_ResolvedFrameRW", renderTargetToUse);
 		primitiveRendererCS.Dispatch(kernelClearRenderTarget, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
-		// Pre-blit env map to resolve target // TODO : won't work with Sorted Alpha
+		// Pre-blit env map to color resolve target // TODO : won't work with Sorted Alpha
 		if (optimizeEnvMap == true)
 		{
 			Matrix4x4 invCameraVP = cameraVP.inverse;
@@ -610,6 +621,7 @@ public class MutationOptimizer : MonoBehaviour
 			envMapMaterial.SetMatrix("_CameraInvVP", invCameraVP);
 			envMapMaterial.SetVector("_CurrentCameraWorldPos", cameraToUse.transform.position);
 			envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBufferToUse);
+			envMapMaterial.SetFloat("_DoColorOrViewDir", 0.0f);
 			Graphics.Blit(null, renderTargetToUse, envMapMaterial);
 		}
 
@@ -631,6 +643,11 @@ public class MutationOptimizer : MonoBehaviour
 			rasterMaterial.SetPass(0);
 			Graphics.SetRenderTarget(idRenderTargetToUse.colorBuffer, idRenderTargetToUse.depthBuffer);
 			GL.Clear(true, true, depthIDClearColor, 1.0f);
+			if (optimizeEnvMap == true)
+			{
+				envMapMaterial.SetFloat("_DoColorOrViewDir", 1.0f);
+				Graphics.Blit(null, idRenderTargetToUse, envMapMaterial);
+			}
 			Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse.count);
 
 			// Resolve opaque render
@@ -744,6 +761,7 @@ public class MutationOptimizer : MonoBehaviour
 			mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
+			mutationOptimizerCS.SetFloat("_LearningRateEnvMap", learningRateEnvMap * learningRateModifier);
 			if (parameterSeparationMode == ParameterOptimSeparationMode.None)
 				optimStepsSeparateCount = 1;
 			return;
@@ -753,12 +771,10 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetFloat("_LearningRatePosition", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateColor", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateAlpha", 0.0f);
-
-		// Mesh SVBRDF special case
-		primitiveGroupToUse = 0;
+		mutationOptimizerCS.SetFloat("_LearningRateEnvMap", 0.0f);
 
 		// GEOMETRY/APPEARANCE SEPARATION
- 		if (parameterSeparationMode == ParameterOptimSeparationMode.GeometryAndAppearance)
+		if (parameterSeparationMode == ParameterOptimSeparationMode.GeometryAndAppearance)
 		{
 			optimStepsSeparateCount = 2;
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit || optimPrimitive == PrimitiveType.TrianglesGradientUnlit || optimPrimitive == PrimitiveType.TrianglesGaussianUnlit)
@@ -772,6 +788,8 @@ public class MutationOptimizer : MonoBehaviour
 					mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 					if (transparencyMode != TransparencyMode.None)
 						mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
+					if (optimizeEnvMap == true)
+						mutationOptimizerCS.SetFloat("_LearningRateEnvMap", learningRateEnvMap * learningRateModifier);
 				}
 			}
 		}
@@ -784,6 +802,7 @@ public class MutationOptimizer : MonoBehaviour
 				if (learningRatePosition > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRatePosition", learningRatePosition));
 				if (learningRateColor > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateColor", learningRateColor));
 				if (transparencyMode != TransparencyMode.None && learningRateAlpha > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateAlpha", learningRateAlpha));
+				if (optimizeEnvMap == true && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
 				int currentParam = currentParameterGroup % usedParams.Count;
 				mutationOptimizerCS.SetFloat(usedParams[currentParam].Item1, usedParams[currentParam].Item2 * learningRateModifier);
 				optimStepsSeparateCount = usedParams.Count;
@@ -791,70 +810,76 @@ public class MutationOptimizer : MonoBehaviour
 		}
 	}
 
-	public void ResetOptimizationStep()
+	public void ResetOptimizationStep(int primitiveGroupToUse)
 	{
-		// ======================= RANDOM MUTATION OPTIMIZATION =======================
-		mutationOptimizerCS.SetBuffer(kernelResetMutationLossAccumulation, "_PrimitiveGradientsOptimStep", optimStepGradientsBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelResetMutationLossAccumulation, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
-		DispatchCompute1D(mutationOptimizerCS, kernelResetMutationLossAccumulation, primitiveBuffer[primitiveGroupToUse].count, 256);
+		int kernelToUse = primitiveGroupToUse == 0 ? kernelResetMutationLossAccumulation : kernelEnvMapResetMutationLossAccumulation;
+		string suffix = primitiveGroupToUse == 0 ? "" : "Float3";
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveGradientsOptimStep" + suffix, optimStepGradientsBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
 	}
 
-	public void AccumulateOptimizationStep()
+	public void AccumulateOptimizationStep(int primitiveGroupToUse)
 	{
-		// ======================= RANDOM MUTATION OPTIMIZATION =======================
 		// Accumulate per pixel image loss
-		mutationOptimizerCS.SetTexture(kernelAccumulateMutationLoss, "_TargetTexture", targetFrameBuffer);
-		mutationOptimizerCS.SetTexture(kernelAccumulateMutationLoss, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
-		mutationOptimizerCS.SetTexture(kernelAccumulateMutationLoss, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
-		mutationOptimizerCS.SetBuffer(kernelAccumulateMutationLoss, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+		int kernelToUse = primitiveGroupToUse == 0 ? kernelAccumulateMutationLoss : kernelEnvMapAccumulateMutationLoss;
+		string suffix = primitiveGroupToUse == 0 ? "" : "Float3";
+		mutationOptimizerCS.SetTexture(kernelToUse, "_TargetTexture", targetFrameBuffer);
+		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
+		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
 		if (transparencyMode == TransparencyMode.None)
 		{
-			mutationOptimizerCS.SetTexture(kernelAccumulateMutationLoss, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
-			mutationOptimizerCS.SetTexture(kernelAccumulateMutationLoss, "_DepthIDBufferMutatedPlus", optimRenderTarget);
+			mutationOptimizerCS.SetTexture(kernelToUse, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
+			mutationOptimizerCS.SetTexture(kernelToUse, "_DepthIDBufferMutatedPlus", optimRenderTarget);
 		}
 		else
 		{
-			mutationOptimizerCS.SetBuffer(kernelAccumulateMutationLoss, "_PerPixelFragmentCounter", perPixelFragmentCounterBuffer);
-			mutationOptimizerCS.SetBuffer(kernelAccumulateMutationLoss, "_PerPixelFragmentList", perPixelFragmentListBuffer);
+			mutationOptimizerCS.SetBuffer(kernelToUse, "_PerPixelFragmentCounter", perPixelFragmentCounterBuffer);
+			mutationOptimizerCS.SetBuffer(kernelToUse, "_PerPixelFragmentList", perPixelFragmentListBuffer);
 		}
-		mutationOptimizerCS.Dispatch(kernelAccumulateMutationLoss, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
+		mutationOptimizerCS.Dispatch(kernelToUse, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
 		// Accumulate gradients
-		mutationOptimizerCS.SetBuffer(kernelAccumulateMutationGradientsResetLoss, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelAccumulateMutationGradientsResetLoss, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelAccumulateMutationGradientsResetLoss, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelAccumulateMutationGradientsResetLoss, "_PrimitiveGradientsOptimStep", optimStepGradientsBuffer[primitiveGroupToUse]);
-		DispatchCompute1D(mutationOptimizerCS, kernelAccumulateMutationGradientsResetLoss, primitiveBuffer[primitiveGroupToUse].count, 256);
+		int kernelToUse2 = primitiveGroupToUse == 0 ? kernelAccumulateMutationGradientsResetLoss : kernelEnvMapAccumulateMutationGradientsResetLoss;
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer" + suffix, primitiveBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBufferMutated" + suffix, primitiveBufferMutated[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveGradientsOptimStep" + suffix, optimStepGradientsBuffer[primitiveGroupToUse]);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[primitiveGroupToUse].count, 256);
 	}
 
-	public void ApplyOptimizationStep()
+	public void ApplyOptimizationStep(int primitiveGroupToUse)
 	{
-		// ======================= RANDOM MUTATION OPTIMIZATION =======================
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveGradientsOptimStep", optimStepGradientsBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelApplyRandomMutation, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
-		DispatchCompute1D(mutationOptimizerCS, kernelApplyRandomMutation, primitiveBuffer[primitiveGroupToUse].count, 256);
+		int kernelToUse = primitiveGroupToUse == 0 ? kernelApplyRandomMutation : kernelEnvMapApplyRandomMutation;
+		string suffix = primitiveGroupToUse == 0 ? "" : "Float3";
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer" + suffix, primitiveBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveGradientsMoments1" + suffix, gradientMoments1Buffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveGradientsMoments2" + suffix, gradientMoments2Buffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveGradientsOptimStep" + suffix, optimStepGradientsBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
 
 		// Special Mesh and SVBRDF handling
 		primitiveBufferDirty[primitiveGroupToUse] = true;
 	}
 
-	public void CreateNewRandomMutation()
+	public void CreateNewRandomMutation(int primitiveGroupToUse)
 	{
+		int kernelToUse = primitiveGroupToUse == 0 ? kernelCreateNewRandomMutation : kernelEnvMapCreateNewRandomMutation;
+		string suffix = primitiveGroupToUse == 0 ? "" : "Float3";
 		mutationOptimizerCS.SetVector("_WorldSpaceCameraPos", cameraOptim.transform.position);
 		mutationOptimizerCS.SetFloat("_CameraFovVRad", cameraOptim.fieldOfView * Mathf.Deg2Rad);
-		mutationOptimizerCS.SetBuffer(kernelCreateNewRandomMutation, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
-		mutationOptimizerCS.SetBuffer(kernelCreateNewRandomMutation, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
-		DispatchCompute1D(mutationOptimizerCS, kernelCreateNewRandomMutation, primitiveBuffer[primitiveGroupToUse].count, 256);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer" + suffix, primitiveBuffer[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBufferMutated" + suffix, primitiveBufferMutated[primitiveGroupToUse]);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
 
 		// Special Mesh and SVBRDF handling
 		primitiveBufferMutatedDirty[primitiveGroupToUse] = true;
 	}
 
-	public void PerformPrimitiveResampling()
+	public void PerformPrimitiveResampling(int primitiveGroupToUse)
 	{
 		if (doPrimitiveResampling != setPrimitiveResampling)
 		{
@@ -1060,10 +1085,13 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetFloat("_OptimSuperSampling", optimSupersampling);
 		computeShader.SetFloat("_CurrentOptimizerMipLevel", math.log2(optimSupersampling));
 		computeShader.SetInt("_MaxFragmentsPerPixel", maxFragmentsPerPixel);
-		computeShader.SetInt("_PrimitiveCount", primitiveBuffer[primitiveGroupToUse].count);
+		computeShader.SetInt("_PrimitiveCount", primitiveBuffer[0].count);
 
 		computeShader.SetVector("_ColmapTrimAABBMin", colmapTrimBounds.min);
 		computeShader.SetVector("_ColmapTrimAABBMax", colmapTrimBounds.max);
+
+		computeShader.SetFloat("_DoEnvMapOptimze", optimizeEnvMap == true ? 1.0f : 0.0f);
+		computeShader.SetInt("_EnvMapResolution", envMapResolution);
 	}
 
 	public void RandomizeCameraView()
@@ -1152,7 +1180,8 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(primitiveRendererCS, true, true, true);
 		ResetKeywords(mutationOptimizerCS, true, true, true);
 		InitAllOptimBuffers();
-		ResetOptimizationStep();
+		ResetOptimizationStep(0);
+		ResetOptimizationStep(1);
 		ResetKeywords(rasterMaterial, true, true, true);
 
 		// Set up 3D view camera
@@ -1285,7 +1314,7 @@ public class MutationOptimizer : MonoBehaviour
 			mutationOptimizerCS.SetInt("_PrimitiveCount", primitiveBuffer[0].count);
 			mutationOptimizerCS.SetInt("_FramesUnseenBeforeKill", optimStepsUnseenBeforeKill);
 			mutationOptimizerCS.SetBuffer(kernelResetVisibilityCounter, "_PrimitiveKillCounters", primitiveKillCounters);
-			DispatchCompute1D(mutationOptimizerCS, kernelResetVisibilityCounter, primitiveBuffer[primitiveGroupToUse].count, 256);
+			DispatchCompute1D(mutationOptimizerCS, kernelResetVisibilityCounter, primitiveBuffer[0].count, 256);
 		}
 
 		// Transparency optim buffers

@@ -789,41 +789,15 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 
 
 
-// ======================= TRIANGLE SOUP GAUSSIAN =======================
-#ifdef ENVMAP_TEXEL
-struct PrimitiveData
-{
-	float3 color;
-};
+// ======================= ENV MAP STUFF =======================
+int _EnvMapResolution;
 
-float _EnvMapResolution;
-
-PrimitiveData ZeroInitPrimitiveData()
+float2 SimpleMapping(float3 direction)
 {
-	PrimitiveData primitiveData;
-	primitiveData.color = float3(0, 0, 0);
-	return primitiveData;
-}
-
-PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
-{
-	PrimitiveData primitiveData;
-	primitiveData.color = float3(asArray[0], asArray[1], asArray[2]);
-	return primitiveData;
-}
-
-void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
-{
-	asArray[0] = primitiveData.color.x;
-	asArray[1] = primitiveData.color.y;
-	asArray[2] = primitiveData.color.z;
-}
-
-void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
-{
-	asArray[0] = _LearningRateColor;
-	asArray[1] = _LearningRateColor;
-	asArray[2] = _LearningRateColor;
+	float2 uv = DirectionToElevationAzimuth(direction.xzy);
+	uv.x = Remap(uv.x, -3.14159265359, 3.14159265359, 0, 1);
+	uv.y = Remap(uv.y, -3.14159265359, 3.14159265359, 0, 1);
+	return uv;
 }
 
 float2 OctahedralMapping(float3 direction)
@@ -848,9 +822,10 @@ float2 OctahedralMapping(float3 direction)
 	return uv;
 }
 
-float3 SampleEnvMapPrimitiveBuffer(StructuredBuffer<PrimitiveData> envMapBuffer, float3 worldViewDir)
+float3 SampleEnvMapPrimitiveBuffer(StructuredBuffer<float3> envMapBuffer, float3 worldViewDir)
 {
-	float2 pixelUV = OctahedralMapping(worldViewDir);
+	float2 pixelUV = SimpleMapping(worldViewDir.xyz);
+	//float2 pixelUV = OctahedralMapping(worldViewDir);
 	//float halfTexel = 1.0 / (float)_EnvMapResolution;
 	//pixelUV = Remap(pixelUV, 0.0 + halfTexel, 1.0 - halfTexel, 0.0, 1.0);
 	int2 texel00 = pixelUV.xy * (_EnvMapResolution - 1);
@@ -858,10 +833,10 @@ float3 SampleEnvMapPrimitiveBuffer(StructuredBuffer<PrimitiveData> envMapBuffer,
 	int2 texel10 = texel00 + int2(1, 0);
 	int2 texel11 = texel00 + int2(1, 1);
 
-	float3 col00 = envMapBuffer[texel00.y * _EnvMapResolution + texel00.x].color;
-	float3 col01 = envMapBuffer[texel01.y * _EnvMapResolution + texel01.x].color;
-	float3 col10 = envMapBuffer[texel10.y * _EnvMapResolution + texel10.x].color;
-	float3 col11 = envMapBuffer[texel11.y * _EnvMapResolution + texel11.x].color;
+	float3 col00 = envMapBuffer[texel00.y * _EnvMapResolution + texel00.x];
+	float3 col01 = envMapBuffer[texel01.y * _EnvMapResolution + texel01.x];
+	float3 col10 = envMapBuffer[texel10.y * _EnvMapResolution + texel10.x];
+	float3 col11 = envMapBuffer[texel11.y * _EnvMapResolution + texel11.x];
 
 	float2 texelLerp = (pixelUV.xy * (_EnvMapResolution - 1)) - texel00;
 	float3 colA = lerp(col00, col10, texelLerp.x);
@@ -870,13 +845,7 @@ float3 SampleEnvMapPrimitiveBuffer(StructuredBuffer<PrimitiveData> envMapBuffer,
 	return col;
 }
 
-float4 FetchColorFromPrimitive(PrimitiveData primitiveData, float3 viewDir = float3(0, 0, 1), float2 barycentricXY = float2(0, 0))
+void PostProcessEnvMap(inout float3 primitiveData)
 {
-	return float4(primitiveData.color.rgb, 1);
+	primitiveData = clamp(primitiveData, 0.0, 1.0);
 }
-
-void PostProcessPrimitive(inout PrimitiveData primitiveData)
-{
-	primitiveData.color = clamp(primitiveData.color, 0.0, 1.0);
-}
-#endif
