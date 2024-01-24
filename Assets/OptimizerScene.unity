@@ -169,9 +169,9 @@ MonoBehaviour:
   primitiveCount: 1000
   primitiveInitSize: 0.1
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
-  colmapUseCameraBounds: 1
-  colmapOnePrimitivePerInitPoint: 0
+  initPrimitivesOnMeshSurface: 1
+  colmapUseCameraBounds: 0
+  colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 0.5
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
@@ -181,7 +181,7 @@ MonoBehaviour:
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 1.5, y: 2}
   optimizeEnvMap: 1
-  envMapResolution: 256
+  envMapResolution: 64
   reset: 0
   pause: 0
   stepForward: 0
@@ -197,20 +197,20 @@ MonoBehaviour:
   optimSupersampling: 0.5
   doAlphaLoss: 0
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 128
+  viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
-  parameterSeparationMode: 1
+  parameterSeparationMode: 0
   debugManualColmapChoice: -1
   globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0
-  learningRateColor: 0.01
+  learningRatePosition: 0.001
+  learningRateColor: 0.005
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
   doPrimitiveResampling: 1
   resamplingInterval: 25
-  optimStepsUnseenBeforeKill: 4
+  optimStepsUnseenBeforeKill: 8
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
   totalElapsedSeconds: 0

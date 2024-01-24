@@ -484,7 +484,7 @@ void EnvMapApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	float3 mutationGradients = _PrimitiveGradientsOptimStepFloat3[primitiveID];
 	float3 gradientMoments1 = _PrimitiveGradientsMoments1Float3[primitiveID];
 	float3 gradientMoments2 = _PrimitiveGradientsMoments2Float3[primitiveID];
-	float learningRates = _LearningRateColor;
+	float learningRates = _LearningRateEnvMap;
 	if (learningRates == 0)
 		return;
 

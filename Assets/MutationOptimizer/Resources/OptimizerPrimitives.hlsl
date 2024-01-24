@@ -790,6 +790,7 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 
 // ======================= ENV MAP STUFF =======================
 int _EnvMapResolution;
+float _LearningRateEnvMap;
 
 float2 SimpleMapping(float3 direction)
 {
