@@ -204,9 +204,10 @@ MonoBehaviour:
   globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0.0005
+  learningRatePosition: 0
   learningRateColor: 0.01
   learningRateAlpha: 0
+  learningRateEnvMap: 0.01
   doPrimitiveResampling: 1
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 4

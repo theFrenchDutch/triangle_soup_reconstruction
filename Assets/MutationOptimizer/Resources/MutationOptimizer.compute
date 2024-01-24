@@ -423,20 +423,24 @@ void EnvMapAccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	int seenEnvMapTexelID2 = -1;
 	if (asuint(depthIDBufferFetchPlus.x) == 4294967295)
 	{
-		float3 worldViewDir = depthIDBufferFetchPlus.yzw;
+		float3 worldViewDir = FloatToFloat3(depthIDBufferFetchPlus.y);
 		float2 pixelUV = SimpleMapping(worldViewDir.xyz);
 		int2 envMapCoord = clamp(pixelUV * _EnvMapResolution, 0, _EnvMapResolution - 1);
 		seenEnvMapTexelID1 = envMapCoord.y * _EnvMapResolution + envMapCoord.x;
-		//InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID1], lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID1].x, lossDiff);
+		InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID1].y, 1);
 	}
 	if (asuint(depthIDBufferFetchMinus.x) == 4294967295)
 	{
-		float3 worldViewDir = depthIDBufferFetchMinus.yzw;
+		float3 worldViewDir = FloatToFloat3(depthIDBufferFetchMinus.y);
 		float2 pixelUV = SimpleMapping(worldViewDir.xyz);
 		int2 envMapCoord = clamp(pixelUV * _EnvMapResolution, 0, _EnvMapResolution - 1);
 		seenEnvMapTexelID2 = envMapCoord.y * _EnvMapResolution + envMapCoord.x;
-		//if (seenEnvMapTexelID2 != seenEnvMapTexelID1)
-		//	InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID2], lossDiff);
+		if (seenEnvMapTexelID2 != seenEnvMapTexelID1)
+		{
+			InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID2].x, lossDiff);
+			InterlockedAdd(_PrimitiveMutationError[seenEnvMapTexelID2].y, 1);
+		}
 	}
 }
 
@@ -457,11 +461,8 @@ void EnvMapAccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	float3 mutationGradients = _PrimitiveGradientsOptimStepFloat3[primitiveID];
 
 	// Accumulate gradients
-	for (int i = 0; i < 3; i++)
-	{
-		float mutation = primitiveDataMutated[i] - primitiveData[i];
-		mutationGradients[i] += mutation * lossDiff / 2.0;
-	}
+	float3 mutation = primitiveDataMutated - primitiveData;
+	mutationGradients += mutation * lossDiff / 2.0;
 
 	// Store result
 	_PrimitiveGradientsOptimStepFloat3[primitiveID] = mutationGradients;
@@ -490,22 +491,21 @@ void EnvMapApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	// Normalize gradients by pixel counts and reset them
 	int pixelCount = _PrimitiveMutationError[threadID].y;
 	if (pixelCount > 0)
-		for (int i = 0; i < 3; i++)
-			mutationGradients[i] /= (float)pixelCount;
+		mutationGradients /= (float)pixelCount;
 	_PrimitiveMutationError[threadID].y = 0;
 
 	// Apply gradients
 	if (_OptimizerMode == 0) // RMS PROP
 	{
 		// Fetch gradient
-		float3 gradient = mutationGradients[i];
+		float3 gradient = mutationGradients;
 
 		// Update RMS Prop squared gradient
 		gradientMoments1 = _OptimizerBeta1 * gradientMoments1 + (1.0 - _OptimizerBeta1) * (gradient * gradient);
 
 		// Apply gradient
 		if (_CurrentOptimStep == 0)
-			continue;
+			return;
 		primitiveData += learningRates * (gradient / (sqrt(gradientMoments1) + 1e-7));
 	}
 	else // ADAM
@@ -520,8 +520,8 @@ void EnvMapApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 		gradientMoments2 = _OptimizerBeta2 * gradientMoments2 + (1.0 - _OptimizerBeta2) * (gradient * gradient);
 
 		// Apply gradient
-		float moment1BiasCorrected = gradientMoments1 / (1.0 - pow(_OptimizerBeta1, primitiveOptimStep + 1));
-		float moment2BiasCorrected = gradientMoments2 / (1.0 - pow(_OptimizerBeta2, primitiveOptimStep + 1));
+		float3 moment1BiasCorrected = gradientMoments1 / (1.0 - pow(_OptimizerBeta1, primitiveOptimStep + 1));
+		float3 moment2BiasCorrected = gradientMoments2 / (1.0 - pow(_OptimizerBeta2, primitiveOptimStep + 1));
 		if (_DoGradientDescent > 0.5)
 			primitiveData += learningRates * (moment1BiasCorrected / (sqrt(moment2BiasCorrected) + 1e-7));
 		_PrimitiveOptimStepCounter[primitiveID] = primitiveOptimStep + 1;
@@ -550,7 +550,7 @@ void EnvMapCreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 		return;
 
 	uint rngState = WangHash((_CurrentFrame * _PrimitiveCount * _MutationsPerFrame) + (threadID * _MutationsPerFrame) + _CurrentMutation);
-	float randomMutation = GetRandomFloat(rngState);
+	float3 randomMutation = float3(GetRandomFloat(rngState), GetRandomFloat(rngState), GetRandomFloat(rngState));
 	randomMutation *= _IsAntitheticMutation > 0.5 ? -1.0 : 1.0;
 	randomMutation *= learningRates;
 	primitiveData += randomMutation;

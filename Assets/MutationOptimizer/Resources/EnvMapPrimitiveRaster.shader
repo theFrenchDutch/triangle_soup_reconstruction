@@ -36,6 +36,7 @@ Shader "Custom/EnvMapPrimitiveRaster"
 
 			v2f vert(appdata v)
 			{
+				v.vertex.xy = v.vertex.xy * 2 - 1;
 				float4 temp = mul(_CameraInvVP, float4(v.vertex.xy, 0.5, 1));
 				float3 worldPos = temp.xyz / temp.w;
 				float3 worldViewDir = normalize(worldPos - _CurrentCameraWorldPos);
@@ -52,7 +53,7 @@ Shader "Custom/EnvMapPrimitiveRaster"
 				if (_DoColorOrViewDir < 0.5)
 					return float4(SampleEnvMapPrimitiveBuffer(_EnvMapPrimitiveBuffer, i.worldViewDir), 1);
 				else
-					return float4(asfloat(4294967295), i.worldViewDir);
+					return float4(asfloat(4294967295), Float3ToFloat(i.worldViewDir), 0, 0);
 			}
 			ENDCG
 		}

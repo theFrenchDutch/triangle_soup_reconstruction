@@ -273,7 +273,8 @@ public class MutationOptimizer : MonoBehaviour
 			ResetKeywords(mutationOptimizerCS, true, true, true);
 			ResetKeywords(rasterMaterial, true, true, true);
 			ResetOptimizationStep(0);
-			ResetOptimizationStep(1);
+			if (optimizeEnvMap == true)
+				ResetOptimizationStep(1);
 		}
 
 		// Handle live re-compile of compute shader
@@ -376,18 +377,18 @@ public class MutationOptimizer : MonoBehaviour
 					SetOptimizerLearningRatesAndGetSeparateCount(k, false);
 
 					// Minus Epsilon
+					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 1.0f);
 					CreateNewRandomMutation(0);
 					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
 						CreateNewRandomMutation(1);
-					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 1.0f);
-					RenderOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedMinus, optimRenderTargetMutatedMinus, true, j == 0 ? true : false);
+					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedMinus, optimRenderTargetMutatedMinus, j == 0 ? true : false);
 
 					// Plus Epsilon
+					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 0.0f);
 					CreateNewRandomMutation(0);
 					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
 						CreateNewRandomMutation(1);
-					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 0.0f);
-					RenderOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedPlus, optimRenderTarget, true, false);
+					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedPlus, optimRenderTarget, false);
 
 					// Accumulate Gradients
 					AccumulateOptimizationStep(0);
@@ -438,7 +439,7 @@ public class MutationOptimizer : MonoBehaviour
 				// Need to render the unmutated primitives from the optim camera here to display unperturbed, stable result for 2D image
 				if (targetMode == TargetMode.Image)
 				{
-					RenderOptimScene(cameraOptim, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget, false, false);
+					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget, false);
 					cameraDisplay.GetComponent<DisplayRenderTexture>().displayRenderTexture = resolvedFrameFreeView;
 				}
 				else
@@ -571,13 +572,14 @@ public class MutationOptimizer : MonoBehaviour
 				envMapMaterial.SetMatrix("_CameraInvVP", invCameraVP);
 				envMapMaterial.SetVector("_CurrentCameraWorldPos", cameraPos);
 				envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBuffer[1]);
+				envMapMaterial.SetFloat("_DoColorOrViewDir", 0.0f);
 				envMapMaterial.SetPass(0);
 				GL.Begin(GL.QUADS);
 				GL.Color(Color.red);
-				GL.Vertex3(-1, -1, 0);
-				GL.Vertex3(-1, 1, 0);
+				GL.Vertex3(0, 0, 0);
+				GL.Vertex3(0, 1, 0);
 				GL.Vertex3(1, 1, 0);
-				GL.Vertex3(1, -1, 0);
+				GL.Vertex3(1, 0, 0);
 				GL.End();
 			}
 
@@ -591,17 +593,7 @@ public class MutationOptimizer : MonoBehaviour
 		}
 	}
 
-	public void RenderOptimScene(Camera cameraToUse, ComputeBuffer[] primitiveBufferToUse, RenderTexture renderTargetToUse, RenderTexture idRenderTargetToUse, bool doVisibilityBuffer = true, bool needsNewWorldAlphaSort = true)
-	{
-		if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit || optimPrimitive == PrimitiveType.TrianglesGradientUnlit || optimPrimitive == PrimitiveType.TrianglesGaussianUnlit)
-			RenderProceduralPrimitivesOptimScene(cameraToUse, primitiveBufferToUse[0], renderTargetToUse, idRenderTargetToUse, needsNewWorldAlphaSort);
-
-		// Generate mip maps of resolved color buffer
-		if (renderTargetToUse.useMipMap == true && renderTargetToUse.autoGenerateMips == false && optimSupersampling > 1)
-			renderTargetToUse.GenerateMips();
-	}
-
-	public void RenderProceduralPrimitivesOptimScene(Camera cameraToUse, ComputeBuffer primitiveBufferToUse, RenderTexture renderTargetToUse, RenderTexture idRenderTargetToUse, bool needsNewWorldAlphaSort = true)
+	public void RenderProceduralPrimitivesOptimScene(Camera cameraToUse, ComputeBuffer[] primitiveBufferToUse, RenderTexture renderTargetToUse, RenderTexture idRenderTargetToUse, bool needsNewWorldAlphaSort = true)
 	{
 		// Camera setup
 		Matrix4x4 cameraVP = GL.GetGPUProjectionMatrix(cameraToUse.projectionMatrix, true) * cameraToUse.worldToCameraMatrix;
@@ -620,7 +612,7 @@ public class MutationOptimizer : MonoBehaviour
 			envMapMaterial.SetInt("_EnvMapResolution", envMapResolution);
 			envMapMaterial.SetMatrix("_CameraInvVP", invCameraVP);
 			envMapMaterial.SetVector("_CurrentCameraWorldPos", cameraToUse.transform.position);
-			envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBufferToUse);
+			envMapMaterial.SetBuffer("_EnvMapPrimitiveBuffer", primitiveBufferToUse[1]);
 			envMapMaterial.SetFloat("_DoColorOrViewDir", 0.0f);
 			Graphics.Blit(null, renderTargetToUse, envMapMaterial);
 		}
@@ -630,17 +622,16 @@ public class MutationOptimizer : MonoBehaviour
 		rasterMaterial.SetInt("_CurrentFrame", currentViewPoint);
 		rasterMaterial.SetInt("_OutputWidth", internalOptimResolution.x);
 		rasterMaterial.SetInt("_OutputHeight", internalOptimResolution.y);
-		rasterMaterial.SetInt("_PrimitiveCount", primitiveBufferToUse.count);
+		rasterMaterial.SetInt("_PrimitiveCount", primitiveBufferToUse[0].count);
 		rasterMaterial.SetInt("_MutationsPerFrame", antitheticMutationsPerFrame);
 		rasterMaterial.SetInt("_MaxFragmentsPerPixel", maxFragmentsPerPixel);
-		rasterMaterial.SetBuffer("_PrimitiveBuffer", primitiveBufferToUse);
+		rasterMaterial.SetBuffer("_PrimitiveBuffer", primitiveBufferToUse[0]);
 		rasterMaterial.SetFloat("_UseSortedPrimitiveIDs", 0.0f);
 
 		// Resolve render target color
 		if (transparencyMode == TransparencyMode.None)
 		{
 			// Render
-			rasterMaterial.SetPass(0);
 			Graphics.SetRenderTarget(idRenderTargetToUse.colorBuffer, idRenderTargetToUse.depthBuffer);
 			GL.Clear(true, true, depthIDClearColor, 1.0f);
 			if (optimizeEnvMap == true)
@@ -648,10 +639,11 @@ public class MutationOptimizer : MonoBehaviour
 				envMapMaterial.SetFloat("_DoColorOrViewDir", 1.0f);
 				Graphics.Blit(null, idRenderTargetToUse, envMapMaterial);
 			}
-			Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse.count);
+			rasterMaterial.SetPass(0);
+			Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse[0].count);
 
 			// Resolve opaque render
-			primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveBuffer", primitiveBufferToUse);
+			primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveBuffer", primitiveBufferToUse[0]);
 			primitiveRendererCS.SetTexture(kernelResolveOpaqueRender, "_DepthIDBufferRW", idRenderTargetToUse);
 			primitiveRendererCS.SetTexture(kernelResolveOpaqueRender, "_ResolvedFrameRW", renderTargetToUse);
 			primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveKillCounters", primitiveKillCounters);
@@ -668,7 +660,7 @@ public class MutationOptimizer : MonoBehaviour
 			if (needsNewWorldAlphaSort == true)
 			{
 				primitiveRendererCS.SetMatrix("_SortMatrixMV", cameraToUse.worldToCameraMatrix);
-				primitiveRendererCS.SetBuffer(kernelInitBitonicSortPrimitives, "_PrimitiveBuffer", primitiveBufferToUse);
+				primitiveRendererCS.SetBuffer(kernelInitBitonicSortPrimitives, "_PrimitiveBuffer", primitiveBufferToUse[0]);
 				primitiveRendererCS.SetBuffer(kernelInitBitonicSortPrimitives, "_SortedPrimitiveIDs", sortedPrimitiveIDBuffer);
 				primitiveRendererCS.SetBuffer(kernelInitBitonicSortPrimitives, "_SortedPrimitiveDistances", sortedPrimitiveDistanceBuffer);
 				DispatchCompute1D(primitiveRendererCS, kernelInitBitonicSortPrimitives, primitiveCount, 256);
@@ -683,14 +675,14 @@ public class MutationOptimizer : MonoBehaviour
 			Graphics.SetRandomWriteTarget(4, perPixelFragmentCounterBuffer, true);
 			Graphics.SetRandomWriteTarget(5, perPixelFragmentListBuffer, true);
 			GL.Clear(true, true, Color.clear, 1.0f);
-			Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse.count);
+			Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse[0].count);
 
 			// We use the render output directly in this mode (depth+ID is output in a different buffer)
 			Graphics.Blit(idRenderTargetToUse, renderTargetToUse);
 
 			// Count actual fragment count that contributed and reset kill counters
 			primitiveRendererCS.SetFloat("_AlphaContributingCutoff", alphaContributingCutoff);
-			primitiveRendererCS.SetBuffer(kernelFindContributingAlphaFragments, "_PrimitiveBuffer", primitiveBufferToUse);
+			primitiveRendererCS.SetBuffer(kernelFindContributingAlphaFragments, "_PrimitiveBuffer", primitiveBufferToUse[0]);
 			primitiveRendererCS.SetBuffer(kernelFindContributingAlphaFragments, "_PerPixelFragmentCounter", perPixelFragmentCounterBuffer);
 			primitiveRendererCS.SetBuffer(kernelFindContributingAlphaFragments, "_PerPixelFragmentList", perPixelFragmentListBuffer);
 			primitiveRendererCS.SetBuffer(kernelFindContributingAlphaFragments, "_PrimitiveKillCounters", primitiveKillCounters);
@@ -710,11 +702,11 @@ public class MutationOptimizer : MonoBehaviour
 				rasterMaterial.SetInt("_CurrentStochasticFrame", currentStochasticFrame++);
 				Graphics.SetRenderTarget(idRenderTargetToUse.colorBuffer, idRenderTargetToUse.depthBuffer);
 				GL.Clear(true, true, depthIDClearColor, 1.0f);
-				Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse.count);
+				Graphics.DrawProceduralNow(MeshTopology.Triangles, vertexCount, primitiveBufferToUse[0].count);
 
 				// Resolve opaque render (additive)
 				primitiveRendererCS.SetInt("_CurrentStochasticFrame", i);
-				primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveBuffer", primitiveBufferToUse);
+				primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveBuffer", primitiveBufferToUse[0]);
 				primitiveRendererCS.SetTexture(kernelResolveOpaqueRender, "_DepthIDBufferRW", idRenderTargetToUse);
 				primitiveRendererCS.SetTexture(kernelResolveOpaqueRender, "_ResolvedFrameRW", renderTargetToUse);
 				primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveKillCounters", primitiveKillCounters);
@@ -722,6 +714,10 @@ public class MutationOptimizer : MonoBehaviour
 				primitiveRendererCS.Dispatch(kernelResolveOpaqueRender, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 			}
 		}
+
+		// Generate mip maps of resolved color buffer
+		if (renderTargetToUse.useMipMap == true && renderTargetToUse.autoGenerateMips == false && optimSupersampling > 1)
+			renderTargetToUse.GenerateMips();
 	}
 
 
@@ -825,8 +821,8 @@ public class MutationOptimizer : MonoBehaviour
 		int kernelToUse = primitiveGroupToUse == 0 ? kernelAccumulateMutationLoss : kernelEnvMapAccumulateMutationLoss;
 		string suffix = primitiveGroupToUse == 0 ? "" : "Float3";
 		mutationOptimizerCS.SetTexture(kernelToUse, "_TargetTexture", targetFrameBuffer);
-		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
 		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
+		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
 		if (transparencyMode == TransparencyMode.None)
 		{
@@ -1181,7 +1177,8 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(mutationOptimizerCS, true, true, true);
 		InitAllOptimBuffers();
 		ResetOptimizationStep(0);
-		ResetOptimizationStep(1);
+		if (optimizeEnvMap == true)
+			ResetOptimizationStep(1);
 		ResetKeywords(rasterMaterial, true, true, true);
 
 		// Set up 3D view camera
@@ -1298,7 +1295,7 @@ public class MutationOptimizer : MonoBehaviour
 			gradientMoments1Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			gradientMoments2Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			primitiveBufferMutated[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
-			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));// * 2);
+			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int) * 2);
 			optimStepCounterBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));
 			ZeroInitBuffer(optimStepGradientsBuffer[1]);
 			ZeroInitBuffer(gradientMoments1Buffer[1]);
@@ -2634,7 +2631,7 @@ public class MutationOptimizer : MonoBehaviour
 			Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
 			newTexel.color = new float3(randColor.r, randColor.g, randColor.b);
 			//newTexel.color = new float3(1.0f, 1.0f, 1.0f);
-			//newTexel.color = new float3(0.5f, 0.5f, 0.5f);
+			newTexel.color = new float3(0.5f, 0.5f, 0.5f);
 			//newTexel.color = new float3(0.0f, 0.0f, 0.0f);
 			randData[i] = newTexel;
 		}

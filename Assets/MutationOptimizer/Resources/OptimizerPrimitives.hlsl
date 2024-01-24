@@ -4,7 +4,6 @@
 // ======================= UTILS =======================
 float4 LinearToGammaRGB(float4 color)
 {
-	return color;
 	return float4(pow(color.rgb, 1.0 / 2.2), color.a);
 }
 
