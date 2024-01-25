@@ -173,7 +173,7 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss;
 	float lossDiffFloat = lossMinus - lossPlus;
 
-	int lossDiff = lossDiffFloat * 256 * 256 * 0;
+	int lossDiff = lossDiffFloat * 256 * 256 * 1;
 	if (lossDiff == 0)
 		return;
 
@@ -252,11 +252,11 @@ void ApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	GetLearningRatesFloatArray(learningRatesFloats);
 
 	// Normalize gradients by pixel counts and reset them
-	int pixelCount = _PrimitiveMutationError[threadID].y;
+	/*int pixelCount = _PrimitiveMutationError[threadID].y;
 	if (pixelCount > 0)
 		for (int i = 0; i < PRIMITIVE_SIZE; i++)
 			mutationGradientsFloats[i] /= (float)pixelCount;
-	_PrimitiveMutationError[threadID].y = 0;
+	_PrimitiveMutationError[threadID].y = 0;*/
 
 	// Apply gradients
 	if (_OptimizerMode == 0) // RMS PROP
@@ -380,6 +380,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 	PrimitiveData current = _PrimitiveBuffer[primitiveID];
 	PrimitiveData currentMutated = _PrimitiveBufferMutated[primitiveID];
 	float currentAvgSize = (length(current.positions[0] - current.positions[1]) + length(current.positions[1] - current.positions[2]) + length(current.positions[2] - current.positions[2])) / 3.0;
+	float3 currentAvgPos = (current.positions[0] + current.positions[1] + current.positions[1]) / 3.0;
 
 	// Find neighbouring triangles
 	float accumulateLossDiff = 0;
@@ -396,28 +397,93 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 				continue;
 			PrimitiveData other = _PrimitiveBuffer[otherPrimitiveID];
 			float otherAvgSize = (length(other.positions[0] - other.positions[1]) + length(other.positions[1] - other.positions[2]) + length(other.positions[2] - other.positions[2])) / 3.0;
+			float3 otherAvgPos = (other.positions[0] + other.positions[1] + other.positions[1]) / 3.0;
+			if (length(otherAvgPos - currentAvgPos) > currentAvgSize * 1)
+				continue;
 
-			// Apply structural distance loss between all vertices
-			float avgSizeToUse = (currentAvgSize + otherAvgSize) / 2.0;
+			// Find two closest vertex pairs
+			float3 closestPair = float3(-1, -1, 99999999);
 			for (int i = 0; i < 3; i++)
 			{
+				for (int j = 0; j < 3; j++)
+				{
+					float dist = length(current.positions[i] - other.positions[j]);
+					if (dist < closestPair.z)
+					{
+						closestPair = float3(i, j, dist);
+					}
+				}
+			}
+			float3 closestPair2 = float3(-1, -1, 99999999);
+			for (int i = 0; i < 3; i++)
+			{
+				if (i == closestPair.x)
+					continue;
+				for (int j = 0; j < 3; j++)
+				{
+					if (j == closestPair.y)
+						continue;
+					float dist = length(current.positions[i] - other.positions[j]);
+					if (dist < closestPair2.z)
+					{
+						closestPair2 = float3(i, j, dist);
+					}
+				}
+			}
+
+			// Do loss for first closest pair
+			if (closestPair.x >= 0)
+			{
+				int i = closestPair.x;
+				int j = closestPair.y;
 				float3 mutation = currentMutated.positions[i] - current.positions[i];
 				float3 vertexPlus = current.positions[i] + mutation;
 				float3 vertexMinus = current.positions[i] - mutation;
-				for (int j = 0; j < 3; j++)
-				{
-					float muFactor = 4.0;
-					float sigmaFactor = 5.0;
-					float3 otherVertex = other.positions[i];
-					//float lossMinus = GaussianFunction(length(otherVertex - vertexMinus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
-					//float lossPlus = GaussianFunction(length(otherVertex - vertexPlus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
-					float lossMinus = length(otherVertex - vertexMinus);
-					float lossPlus = length(otherVertex - vertexPlus);
-					float lossDiff = lossMinus - lossPlus;
-					accumulateLossDiff += lossDiff;
-					normCounter++;
-				}
+				float3 otherVertex = other.positions[j];
+				float lossMinus = length(other.positions[j] - vertexMinus);
+				float lossPlus = length(other.positions[j] - vertexPlus);
+				float lossDiff = lossMinus - lossPlus;
+				accumulateLossDiff += lossDiff;
+				normCounter++;
 			}
+
+			// Do loss for second closest pair
+			if (closestPair2.x >= 0)
+			{
+				int i = closestPair2.x;
+				int j = closestPair2.y;
+				float3 mutation = currentMutated.positions[i] - current.positions[i];
+				float3 vertexPlus = current.positions[i] + mutation;
+				float3 vertexMinus = current.positions[i] - mutation;
+				float3 otherVertex = other.positions[j];
+				float lossMinus = length(other.positions[j] - vertexMinus);
+				float lossPlus = length(other.positions[j] - vertexPlus);
+				float lossDiff = lossMinus - lossPlus;
+				accumulateLossDiff += lossDiff;
+				normCounter++;
+			}
+
+			// Apply structural distance loss between all vertices
+			//float avgSizeToUse = (currentAvgSize + otherAvgSize) / 2.0;
+			//for (int i = 0; i < 3; i++)
+			//{
+			//	float3 mutation = currentMutated.positions[i] - current.positions[i];
+			//	float3 vertexPlus = current.positions[i] + mutation;
+			//	float3 vertexMinus = current.positions[i] - mutation;
+			//	for (int j = 0; j < 3; j++)
+			//	{
+			//		float muFactor = 4.0;
+			//		float sigmaFactor = 5.0;
+			//		float3 otherVertex = other.positions[j];
+			//		//float lossMinus = GaussianFunction(length(otherVertex - vertexMinus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
+			//		//float lossPlus = GaussianFunction(length(otherVertex - vertexPlus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
+			//		float lossMinus = length(otherVertex - vertexMinus);
+			//		float lossPlus = length(otherVertex - vertexPlus);
+			//		float lossDiff = lossMinus - lossPlus;
+			//		accumulateLossDiff += lossDiff;
+			//		normCounter++;
+			//	}
+			//}
 		}
 	}
 

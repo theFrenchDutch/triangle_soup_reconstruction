@@ -168,7 +168,7 @@ public class MutationOptimizer : MonoBehaviour
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float structuralLossWeight = 0.01f;
+	[LogarithmicRange(0.0f, 0.001f, 1000.0f)] public float structuralLossWeight = 0.01f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;

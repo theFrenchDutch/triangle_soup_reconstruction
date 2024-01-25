@@ -161,14 +161,14 @@ MonoBehaviour:
   targetResolution: {x: 512, y: 512}
   targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
-  target3DMesh: {fileID: 8164078560115793440}
+  target3DMesh: {fileID: 625167293}
   target3DCOLMAPFolder: train
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  primitiveCount: 100
-  primitiveInitSize: 0.25
-  primitiveInitSeed: 0
+  primitiveCount: 500
+  primitiveInitSize: 0.1
+  primitiveInitSeed: 2
   initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 1
@@ -195,10 +195,10 @@ MonoBehaviour:
   optimizer: 1
   gradientsWarmupSteps: 0
   optimSupersampling: 1
-  doAlphaLoss: 0
+  doAlphaLoss: 1
   doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 256
+  viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
@@ -209,7 +209,7 @@ MonoBehaviour:
   learningRateColor: 0.005
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.05
+  structuralLossWeight: 15
   doPrimitiveResampling: 0
   resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
@@ -252,7 +252,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 126
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &625167294
 Transform:
   m_ObjectHideFlags: 0
@@ -309,7 +309,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 779ec04fcd28bf043affebfc67f31b4b, type: 2}
+  - {fileID: 2100000, guid: 0c95ec0065df43b40bb76a902ffaac6c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -338,7 +338,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 625167293}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &638231293
 GameObject:
   m_ObjectHideFlags: 0
