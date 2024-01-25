@@ -154,6 +154,7 @@ public class MutationOptimizer : MonoBehaviour
 	public int gradientsWarmupSteps = 16;
 	public float optimSupersampling = 1;
 	public bool doAlphaLoss = true;
+	public bool doStructuralLoss = true;
 	public bool doAllInputFramesForEachOptimStep = false;
 	public int viewsPerOptimStep = 1;
 	public int antitheticMutationsPerFrame = 16;
@@ -167,6 +168,7 @@ public class MutationOptimizer : MonoBehaviour
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
+	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float structuralLossWeight = 0.01f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -838,6 +840,21 @@ public class MutationOptimizer : MonoBehaviour
 		}
 		mutationOptimizerCS.Dispatch(kernelToUse, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
+		// Accumulate structural distance loss
+		if (doStructuralLoss && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
+		{
+			int kernelToUse3 = kernelAccumulateMutationLossStructural;
+			mutationOptimizerCS.SetTexture(kernelToUse3, "_TargetTexture", targetFrameBuffer);
+			mutationOptimizerCS.SetTexture(kernelToUse3, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
+			mutationOptimizerCS.SetTexture(kernelToUse3, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
+			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
+			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedPlus", optimRenderTarget);
+			mutationOptimizerCS.Dispatch(kernelToUse3, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
+		}
+
 		// Accumulate gradients
 		int kernelToUse2 = primitiveGroupToUse == 0 ? kernelAccumulateMutationGradientsResetLoss : kernelEnvMapAccumulateMutationGradientsResetLoss;
 		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer" + suffix, primitiveBuffer[primitiveGroupToUse]);
@@ -1090,6 +1107,8 @@ public class MutationOptimizer : MonoBehaviour
 
 		computeShader.SetFloat("_DoEnvMapOptimze", optimizeEnvMap == true ? 1.0f : 0.0f);
 		computeShader.SetInt("_EnvMapResolution", envMapResolution);
+
+		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
 	}
 
 	public void RandomizeCameraView()

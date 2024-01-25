@@ -98,6 +98,7 @@ float3 _ColmapTrimAABBMax;
 float _AlphaContributingCutoff;
 float _DoGradientDescent;
 float _DoEnvMapOptimze;
+float _StructuralLossWeight;
 
 
 
@@ -251,11 +252,11 @@ void ApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	GetLearningRatesFloatArray(learningRatesFloats);
 
 	// Normalize gradients by pixel counts and reset them
-	int pixelCount = _PrimitiveMutationError[threadID].y;
+	/*int pixelCount = _PrimitiveMutationError[threadID].y;
 	if (pixelCount > 0)
 		for (int i = 0; i < PRIMITIVE_SIZE; i++)
 			mutationGradientsFloats[i] /= (float)pixelCount;
-	_PrimitiveMutationError[threadID].y = 0;
+	_PrimitiveMutationError[threadID].y = 0;*/
 
 	// Apply gradients
 	if (_OptimizerMode == 0) // RMS PROP
@@ -368,6 +369,59 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 
 
 // ======================= STRUCTURAL LOSS =======================
+void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Texture2D<float4> _DepthIDBuffer, inout int seenPrimitiveID, int avoidPrimitiveID = -1)
+{
+#ifdef OPAQUE_RENDER
+	float4 depthIDBufferFetch = _DepthIDBuffer[pixelCoord];
+	int primitiveID = asuint(depthIDBufferFetch.r);
+	seenPrimitiveID = primitiveID;
+	if (primitiveID >= _PrimitiveCount || seenPrimitiveID == avoidPrimitiveID)
+		return;
+	PrimitiveData current = _PrimitiveBuffer[primitiveID];
+	PrimitiveData currentMutated = _PrimitiveBufferMutated[primitiveID];
+	float currentAvgSize = (length(current.positions[0] - current.positions[1]) + length(current.positions[1] - current.positions[2]) + length(current.positions[2] - current.positions[2])) / 3.0;
+
+	// Find neighbouring triangles
+	float accumulateLossDiff = 0;
+	for (int y = -1; y <= 1; y++)
+	{
+		for (int x = -1; x <= 1; x++)
+		{
+			// Check for valid primitive
+			uint2 otherPixelCoord = clamp(pixelCoord + int2(x, y), int2(0, 0), int2(_OutputWidth, _OutputHeight));
+			float4 otherDepthIDBufferFetch = _DepthIDBuffer[otherPixelCoord];
+			int otherPrimitiveID = asuint(otherDepthIDBufferFetch.r);
+			if (otherPrimitiveID >= _PrimitiveCount || otherPrimitiveID == primitiveID)
+				continue;
+			PrimitiveData other = _PrimitiveBuffer[otherPrimitiveID];
+			float otherAvgSize = (length(other.positions[0] - other.positions[1]) + length(other.positions[1] - other.positions[2]) + length(other.positions[2] - other.positions[2])) / 3.0;
+
+			// Apply structural distance loss between all vertices
+			float avgSizeToUse = (currentAvgSize + otherAvgSize) / 2.0;
+			for (int i = 0; i < 3; i++)
+			{
+				float3 mutation = currentMutated.positions[i] - current.positions[i];
+				float3 vertexPlus = current.positions[i] + mutation;
+				float3 vertexMinus = current.positions[i] - mutation;
+				for (int j = 0; j < 3; j++)
+				{
+					float3 otherVertex = other.positions[i];
+					float lossMinus = GaussianFunction(length(otherVertex - vertexMinus), avgSizeToUse, avgSizeToUse / 10.0);
+					float lossPlus = GaussianFunction(length(otherVertex - vertexPlus), avgSizeToUse, avgSizeToUse / 10.0);
+					float lossDiff = lossMinus - lossPlus;
+					accumulateLossDiff += lossDiff;
+				}
+			}
+		}
+	}
+
+	// Accumulate atomically
+	accumulateLossDiff = accumulateLossDiff * 256 * 256 * _StructuralLossWeight;
+	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, accumulateLossDiff);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+#endif
+}
+
 [numthreads(16, 16, 1)]
 void AccumulateMutationLossStructural(uint3 threadID : SV_DispatchThreadID)
 {
@@ -377,32 +431,12 @@ void AccumulateMutationLossStructural(uint3 threadID : SV_DispatchThreadID)
 	// Fetch target color, should already be alpha pre-multiplied
 	uint2 pixelCoord = threadID.xy;
 	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
-	float2 pixelUV = (pixelCoord + 0.5) / float2(_OutputWidth, _OutputHeight);
-	float4 targetColor = _TargetTexture.SampleLevel(_LinearClampSampler, pixelUV, 0);
-	targetColor.rgb = pow(targetColor.rgb, 1.0 / 2.2);// *targetColor.a;
-
-	// Fetch pre (0) and post (1) random move result, should already by alpha pre-multiplied
-	float4 colorRenderMinus = _ResolvedFrameMutatedMinus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
-	float4 colorRenderPlus = _ResolvedFrameMutatedPlus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
-	colorRenderMinus.rgb = pow(colorRenderMinus.rgb, 1.0 / 2.2);// *colorRenderMinus.a;
-	colorRenderPlus.rgb = pow(colorRenderPlus.rgb, 1.0 / 2.2);// *colorRenderPlus.a;
-
-	// Compute loss
-	float4 lossMinusRGBA = pow(abs(targetColor - colorRenderMinus), 2.0); // L2
-	float4 lossPlusRGBA = pow(abs(targetColor - colorRenderPlus), 2.0); // L2
-	float lossMinus = lossMinusRGBA.x + lossMinusRGBA.y + lossMinusRGBA.z + lossMinusRGBA.a * _DoAlphaLoss;
-	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss;
-	float lossDiffFloat = lossMinus - lossPlus;
-
-	int lossDiff = lossDiffFloat * 256 * 256;
-	if (lossDiff == 0)
-		return;
 
 	// Accumulate loss for all primitives that contributed using both ID buffers
 	int seenPrimitiveID1 = -1;
 	int seenPrimitiveID2 = -1;
-	AccumulateLossForPixel(pixelCoord, flatPixelCoord, lossDiff, _DepthIDBufferMutatedPlus, seenPrimitiveID1);
-	AccumulateLossForPixel(pixelCoord, flatPixelCoord, lossDiff, _DepthIDBufferMutatedMinus, seenPrimitiveID2, seenPrimitiveID1);
+	AccumulateStructuralLossForPixel(pixelCoord, flatPixelCoord, _DepthIDBufferMutatedPlus, seenPrimitiveID1);
+	AccumulateStructuralLossForPixel(pixelCoord, flatPixelCoord, _DepthIDBufferMutatedMinus, seenPrimitiveID2, seenPrimitiveID1);
 }
 
 
