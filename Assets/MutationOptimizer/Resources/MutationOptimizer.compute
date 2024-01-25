@@ -173,7 +173,7 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss;
 	float lossDiffFloat = lossMinus - lossPlus;
 
-	int lossDiff = lossDiffFloat * 256 * 256;
+	int lossDiff = lossDiffFloat * 256 * 256 * 0;
 	if (lossDiff == 0)
 		return;
 
@@ -252,11 +252,11 @@ void ApplyRandomMutation(uint3 id : SV_DispatchThreadID)
 	GetLearningRatesFloatArray(learningRatesFloats);
 
 	// Normalize gradients by pixel counts and reset them
-	/*int pixelCount = _PrimitiveMutationError[threadID].y;
+	int pixelCount = _PrimitiveMutationError[threadID].y;
 	if (pixelCount > 0)
 		for (int i = 0; i < PRIMITIVE_SIZE; i++)
 			mutationGradientsFloats[i] /= (float)pixelCount;
-	_PrimitiveMutationError[threadID].y = 0;*/
+	_PrimitiveMutationError[threadID].y = 0;
 
 	// Apply gradients
 	if (_OptimizerMode == 0) // RMS PROP
@@ -383,6 +383,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 
 	// Find neighbouring triangles
 	float accumulateLossDiff = 0;
+	int normCounter = 0;
 	for (int y = -1; y <= 1; y++)
 	{
 		for (int x = -1; x <= 1; x++)
@@ -405,20 +406,29 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 				float3 vertexMinus = current.positions[i] - mutation;
 				for (int j = 0; j < 3; j++)
 				{
+					float muFactor = 4.0;
+					float sigmaFactor = 5.0;
 					float3 otherVertex = other.positions[i];
-					float lossMinus = GaussianFunction(length(otherVertex - vertexMinus), avgSizeToUse, avgSizeToUse / 10.0);
-					float lossPlus = GaussianFunction(length(otherVertex - vertexPlus), avgSizeToUse, avgSizeToUse / 10.0);
+					//float lossMinus = GaussianFunction(length(otherVertex - vertexMinus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
+					//float lossPlus = GaussianFunction(length(otherVertex - vertexPlus), avgSizeToUse / muFactor, avgSizeToUse / sigmaFactor);
+					float lossMinus = length(otherVertex - vertexMinus);
+					float lossPlus = length(otherVertex - vertexPlus);
 					float lossDiff = lossMinus - lossPlus;
 					accumulateLossDiff += lossDiff;
+					normCounter++;
 				}
 			}
 		}
 	}
 
 	// Accumulate atomically
-	accumulateLossDiff = accumulateLossDiff * 256 * 256 * _StructuralLossWeight;
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, accumulateLossDiff);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+	if (normCounter > 0)
+	{
+		accumulateLossDiff /= (float)normCounter;
+		accumulateLossDiff = accumulateLossDiff * 256 * 256 * _StructuralLossWeight;
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].x, accumulateLossDiff);
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+	}
 #endif
 }
 

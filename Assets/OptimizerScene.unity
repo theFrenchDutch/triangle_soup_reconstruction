@@ -159,15 +159,15 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 512, y: 512}
-  targetMode: 2
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
   target3DCOLMAPFolder: train
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  primitiveCount: 1000
-  primitiveInitSize: 0.05
+  primitiveCount: 100
+  primitiveInitSize: 0.25
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
@@ -179,8 +179,8 @@ MonoBehaviour:
   transparencyMode: 0
   maxFragmentsPerPixel: 8
   alphaContributingCutoff: 0.99
-  randomViewZoomRange: {x: 1.5, y: 2}
-  optimizeEnvMap: 1
+  randomViewZoomRange: {x: 2, y: 2}
+  optimizeEnvMap: 0
   envMapResolution: 64
   reset: 0
   pause: 0
@@ -194,13 +194,13 @@ MonoBehaviour:
   doubleEveryXSteps: 300
   optimizer: 1
   gradientsWarmupSteps: 0
-  optimSupersampling: 0.5
+  optimSupersampling: 1
   doAlphaLoss: 0
-  doStructuralLoss: 0
+  doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 64
+  viewsPerOptimStep: 256
   antitheticMutationsPerFrame: 1
-  parameterSeparationMode: 0
+  parameterSeparationMode: 1
   debugManualColmapChoice: -1
   globalLearningRate: 1
   beta1: 0.9
@@ -209,9 +209,9 @@ MonoBehaviour:
   learningRateColor: 0.005
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.01
-  doPrimitiveResampling: 1
-  resamplingInterval: 25
+  structuralLossWeight: 0.05
+  doPrimitiveResampling: 0
+  resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
