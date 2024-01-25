@@ -83,6 +83,7 @@ public class MutationOptimizer : MonoBehaviour
 	private int kernelAccumulateMutationGradientsResetLoss;
 	private int kernelApplyRandomMutation;
 	private int kernelCreateNewRandomMutation;
+	private int kernelAccumulateMutationLossStructural;
 	private int kernelEnvMapResetMutationLossAccumulation;
 	private int kernelEnvMapAccumulateMutationLoss;
 	private int kernelEnvMapAccumulateMutationGradientsResetLoss;
@@ -205,6 +206,7 @@ public class MutationOptimizer : MonoBehaviour
 		kernelAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("AccumulateMutationGradientsResetLoss");
 		kernelApplyRandomMutation = mutationOptimizerCS.FindKernel("ApplyRandomMutation");
 		kernelCreateNewRandomMutation = mutationOptimizerCS.FindKernel("CreateNewRandomMutation");
+		kernelAccumulateMutationLossStructural = mutationOptimizerCS.FindKernel("AccumulateMutationLossStructural");
 		kernelEnvMapResetMutationLossAccumulation = mutationOptimizerCS.FindKernel("EnvMapResetMutationLossAccumulation");
 		kernelEnvMapAccumulateMutationLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationLoss");
 		kernelEnvMapAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationGradientsResetLoss");
@@ -730,8 +732,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (needsToDoublePrimitives == true || (doublingCounter < doublingAmount && currentOptimStep > 1 && currentOptimStep % doubleEveryXSteps == 0))
 		{
 			needsToDoublePrimitives = false;
-			DoublePrimitiveCountBySubdivision();
-			//DoublePrimitiveCountByNewInsertion();
+			//DoublePrimitiveCountBySubdivision();
+			DoublePrimitiveCountByNewInsertion();
 			setPrimitiveCount = primitiveCount;
 			doublingCounter++;
 		}
