@@ -22,14 +22,6 @@ float3 Remap(float3 s, float3 a1, float3 a2, float3 b1, float3 b2)
 	return b1 + (s - a1) * (b2 - b1) / (a2 - a1);
 }
 
-float GaussianFunction(float x, float mu, float sigma)
-{
-	float arg = x - mu;
-	arg = -1.0 / 2.0 * arg * arg / sigma;
-	float a = 1.0 / (pow(2.0 * 3.1415 * sigma, 0.5));
-	return a * exp(arg);
-}
-
 float erfinv(float x)
 {
 	float w, p;

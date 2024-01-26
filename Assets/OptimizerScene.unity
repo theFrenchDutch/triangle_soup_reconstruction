@@ -209,7 +209,7 @@ MonoBehaviour:
   learningRateColor: 0.005
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 15
+  structuralLossWeight: 50
   doPrimitiveResampling: 0
   resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
