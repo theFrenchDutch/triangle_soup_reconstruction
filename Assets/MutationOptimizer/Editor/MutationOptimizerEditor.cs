@@ -46,6 +46,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty doubleEveryXSteps;
 
 	SerializedProperty optimizer;
+	SerializedProperty lossMode;
 	SerializedProperty gradientsWarmupSteps;
 	SerializedProperty optimSupersampling;
 	SerializedProperty doAlphaLoss;
@@ -120,6 +121,7 @@ public class MutationOptimizerEditor : Editor
 		doubleEveryXSteps = serializedObject.FindProperty("doubleEveryXSteps");
 
 		optimizer = serializedObject.FindProperty("optimizer");
+		lossMode = serializedObject.FindProperty("lossMode");
 		gradientsWarmupSteps = serializedObject.FindProperty("gradientsWarmupSteps");
 		optimSupersampling = serializedObject.FindProperty("optimSupersampling");
 		doAlphaLoss = serializedObject.FindProperty("doAlphaLoss");
@@ -301,6 +303,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.Space();
 		EditorGUILayout.LabelField("Optimizer Settings", EditorStyles.boldLabel);
 		EditorGUILayout.PropertyField(optimizer);
+		EditorGUILayout.PropertyField(lossMode);
 		EditorGUILayout.PropertyField(gradientsWarmupSteps);
 		EditorGUILayout.PropertyField(optimSupersampling);
 		EditorGUILayout.PropertyField(doAlphaLoss);

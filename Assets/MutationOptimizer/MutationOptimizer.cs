@@ -151,6 +151,7 @@ public class MutationOptimizer : MonoBehaviour
 	public int doubleEveryXSteps = 0;
 
 	public Optimizer optimizer = Optimizer.Adam;
+	public LossMode lossMode = LossMode.L2;
 	public int gradientsWarmupSteps = 16;
 	public float optimSupersampling = 1;
 	public bool doAlphaLoss = true;
@@ -395,9 +396,9 @@ public class MutationOptimizer : MonoBehaviour
 					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedPlus, optimRenderTarget, false);
 
 					// Accumulate Gradients
-					AccumulateOptimizationStep(0);
+					AccumulateOptimizationStep(0, k);
 					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
-						AccumulateOptimizationStep(1);
+						AccumulateOptimizationStep(1, k);
 				}
 			}
 
@@ -819,7 +820,7 @@ public class MutationOptimizer : MonoBehaviour
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
 	}
 
-	public void AccumulateOptimizationStep(int primitiveGroupToUse)
+	public void AccumulateOptimizationStep(int primitiveGroupToUse, int currentParameterGroup)
 	{
 		// Accumulate per pixel image loss
 		int kernelToUse = primitiveGroupToUse == 0 ? kernelAccumulateMutationLoss : kernelEnvMapAccumulateMutationLoss;
@@ -840,8 +841,8 @@ public class MutationOptimizer : MonoBehaviour
 		}
 		mutationOptimizerCS.Dispatch(kernelToUse, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
-		// Accumulate structural distance loss
-		if (doStructuralLoss && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
+		// Accumulate structural distance loss (only when optimizing positions !)
+		if (doStructuralLoss == true && currentParameterGroup == 0 && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
 		{
 			int kernelToUse3 = kernelAccumulateMutationLossStructural;
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_TargetTexture", targetFrameBuffer);
@@ -1088,6 +1089,7 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetInt("_OutputWidth", internalOptimResolution.x);
 		computeShader.SetInt("_OutputHeight", internalOptimResolution.y);
 		computeShader.SetInt("_OptimizerMode", optimizer == Optimizer.RMSProp ? 0 : 1);
+		computeShader.SetInt("_LossMode", lossMode == LossMode.L1 ? 0 : 1);
 		computeShader.SetFloat("_OptimizerBeta1", beta1);
 		computeShader.SetFloat("_OptimizerBeta2", beta2);
 		computeShader.SetFloat("_MinPrimitiveWorldArea", minPrimitiveWorldArea);
@@ -2697,6 +2699,12 @@ public class MutationOptimizer : MonoBehaviour
 		TwoBands,
 		ThreeBands,
 		FourBands
+	}
+
+	public enum LossMode
+	{
+		L1,
+		L2
 	}
 
 	public enum Optimizer
