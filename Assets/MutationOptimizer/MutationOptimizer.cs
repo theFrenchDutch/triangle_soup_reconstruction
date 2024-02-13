@@ -735,8 +735,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (needsToDoublePrimitives == true || (doublingCounter < doublingAmount && currentOptimStep > 1 && currentOptimStep % doubleEveryXSteps == 0))
 		{
 			needsToDoublePrimitives = false;
-			//DoublePrimitiveCountBySubdivision();
-			DoublePrimitiveCountByNewInsertion();
+			DoublePrimitiveCountBySubdivision();
+			//DoublePrimitiveCountByNewInsertion();
 			setPrimitiveCount = primitiveCount;
 			doublingCounter++;
 		}
@@ -851,6 +851,7 @@ public class MutationOptimizer : MonoBehaviour
 			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
 			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
 			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveKillCounters", primitiveKillCounters);
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedPlus", optimRenderTarget);
 			mutationOptimizerCS.Dispatch(kernelToUse3, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);

@@ -467,6 +467,18 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 				closestPair0 = int2(currentClosestPair0.x, currentClosestPair0.y);
 				closestPair1 = int2(currentClosestPair1.x, currentClosestPair1.y);
 			}
+
+			// Flag for resampling if triangles are overlapping too much
+			float3 currentClosestPair2 = float3(-1, -1, 99999999);
+			currentClosestPair2.x = (currentClosestPair0.x == 0 || currentClosestPair1.x == 0) ? (currentClosestPair0.x == 1 || currentClosestPair1.x == 1) ? 2 : 1 : 0;
+			currentClosestPair2.y = (currentClosestPair0.y == 0 || currentClosestPair1.y == 0) ? (currentClosestPair0.y == 1 || currentClosestPair1.y == 1) ? 2 : 1 : 0;
+			currentClosestPair2.z = length(current.positions[currentClosestPair2.x] - other.positions[currentClosestPair2.y]);
+			float eps = currentAvgSize / 10.0f;
+			if (currentClosestPair0.z < eps && currentClosestPair1.z < eps && currentClosestPair2.z < eps)
+			{
+				int maxID = max(primitiveID, otherPrimitiveID);
+				_PrimitiveKillCounters[maxID] = 0;
+			}
 		}
 	}
 	if (closestNeighbour < 0)
@@ -496,7 +508,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		length1Minus = length(other.positions[j] - vertexMinus);
 		length1Plus = length(other.positions[j] - vertexPlus);
 	}
-	float length2Minus, length2Plus; // Third vertices pairing
+	/*float length2Minus, length2Plus; // Third vertices pairing
 	{
 		int i = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
 		int j = (closestPair0.y == 0 || closestPair1.y == 0) ? (closestPair0.y == 1 || closestPair1.y == 1) ? 2 : 1 : 0;
@@ -506,7 +518,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		float3 otherVertex = other.positions[j];
 		length2Minus = length(other.positions[j] - vertexMinus);
 		length2Plus = length(other.positions[j] - vertexPlus);
-	}
+	}*/
 
 	// Attract closest pairs
 	float lengthMinus = length0Minus + length1Minus;

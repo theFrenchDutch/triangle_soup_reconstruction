@@ -159,17 +159,17 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 512, y: 512}
-  targetMode: 0
+  targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
-  target3DMesh: {fileID: 625167293}
-  target3DCOLMAPFolder: train
+  target3DMesh: {fileID: 8164078560115793440}
+  target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
-  optimPrimitive: 1
+  optimPrimitive: 0
   primitiveCount: 1000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 1
+  initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
@@ -189,25 +189,25 @@ MonoBehaviour:
   separateFreeViewCamera: 1
   displayCatmullClarkControlCage: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 0, y: 0}
-  doublingAmount: 0
-  doubleEveryXSteps: 300
+  lrGeometryStartMulAndSpeed: {x: 300, y: 0.001}
+  doublingAmount: 10
+  doubleEveryXSteps: 500
   optimizer: 1
   lossMode: 1
-  gradientsWarmupSteps: 0
+  gradientsWarmupSteps: 16
   optimSupersampling: 1
   doAlphaLoss: 1
-  doStructuralLoss: 0
+  doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 1
-  antitheticMutationsPerFrame: 32
+  viewsPerOptimStep: 64
+  antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
   globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0.001
-  learningRateColor: 0.01
+  learningRatePosition: 0.00005
+  learningRateColor: 0.005
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
   structuralLossWeight: 5
