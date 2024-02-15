@@ -80,6 +80,7 @@ Shader "Custom/TrianglePrimitiveRaster"
 					// Fetch color
 					PrimitiveData primitiveData = _PrimitiveBuffer[input.primitiveID];
 					float4 color = FetchColorFromPrimitive(primitiveData, input.worldViewDir, input.barycentric.xy);
+					color.rgb = GetRandomColor(input.primitiveID);
 					return float4(color.rgb, 1);
 				}
 

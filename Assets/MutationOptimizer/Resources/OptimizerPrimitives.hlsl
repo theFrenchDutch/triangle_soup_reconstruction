@@ -96,6 +96,18 @@ float GetRandomFloat(inout uint rngState)
 	return res * 2.0 - 1.0;*/
 }
 
+float3 GetRandomColor(uint primitiveID)
+{
+	uint rngState = WangHash(primitiveID);
+	RandXorshift(rngState);
+	float r = float(rngState) * (1.0 / 4294967296.0);
+	RandXorshift(rngState);
+	float g = float(rngState) * (1.0 / 4294967296.0);
+	RandXorshift(rngState);
+	float b = float(rngState) * (1.0 / 4294967296.0);
+	return float3(r, g, b);
+}
+
 float Unsigned3DTriangleArea(float3 A, float3 B, float3 C)
 {
 	return length(cross(B - A, C - A));

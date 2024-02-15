@@ -370,6 +370,14 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 
 
 // ======================= STRUCTURAL LOSS =======================
+float3 ProjectPointOnLine(float3 A, float3 B, float3 P)
+{
+	float3 AB = B - A;
+	float3 AP = P - A;
+	float3 projection = dot(AP, AB) / dot(AB, AB) * AB;
+	return A + projection;
+}
+
 float CustomBellFunction(float x, float sizeParam)
 {
 	float A = 20.0;
@@ -427,8 +435,8 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			PrimitiveData other = _PrimitiveBuffer[otherPrimitiveID];
 			float otherAvgSize = (length(other.positions[0] - other.positions[1]) + length(other.positions[1] - other.positions[2]) + length(other.positions[2] - other.positions[2])) / 3.0;
 			float3 otherAvgPos = (other.positions[0] + other.positions[1] + other.positions[1]) / 3.0;
-			if (length(otherAvgPos - currentAvgPos) > currentAvgSize * 1)
-				continue;
+			//if (length(otherAvgPos - currentAvgPos) > currentAvgSize * 1)
+			//	continue;
 
 			// Find two closest vertex pairs for this neighbour
 			float3 currentClosestPair0 = float3(-1, -1, 99999999);
@@ -443,6 +451,8 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 					}
 				}
 			}
+			if (currentClosestPair0.z > currentAvgSize * 1) // return if triangles are too far away
+				continue;
 			float3 currentClosestPair1 = float3(-1, -1, 99999999);
 			for (int i = 0; i < 3; i++)
 			{
@@ -469,7 +479,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			}
 
 			// Flag for resampling if triangles are overlapping too much
-			float3 currentClosestPair2 = float3(-1, -1, 99999999);
+			/*float3 currentClosestPair2 = float3(-1, -1, 99999999);
 			currentClosestPair2.x = (currentClosestPair0.x == 0 || currentClosestPair1.x == 0) ? (currentClosestPair0.x == 1 || currentClosestPair1.x == 1) ? 2 : 1 : 0;
 			currentClosestPair2.y = (currentClosestPair0.y == 0 || currentClosestPair1.y == 0) ? (currentClosestPair0.y == 1 || currentClosestPair1.y == 1) ? 2 : 1 : 0;
 			currentClosestPair2.z = length(current.positions[currentClosestPair2.x] - other.positions[currentClosestPair2.y]);
@@ -477,16 +487,16 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			if (currentClosestPair0.z < eps && currentClosestPair1.z < eps && currentClosestPair2.z < eps)
 			{
 				int maxID = max(primitiveID, otherPrimitiveID);
-				_PrimitiveKillCounters[maxID] = 0;
-			}
+				_PrimitiveKillCounters[maxID] = -1;
+			}*/
 		}
 	}
 	if (closestNeighbour < 0)
 		return;
 
-	// Pairing distances
+	// Edge pairing distances
 	PrimitiveData other = _PrimitiveBuffer[closestNeighbour];
-	float length0Minus, length0Plus; // Edge pairing 0
+	float length0Minus, length0Plus; // Vertex pairing 0
 	{
 		int i = closestPair0.x;
 		int j = closestPair0.y;
@@ -497,7 +507,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		length0Minus = length(other.positions[j] - vertexMinus);
 		length0Plus = length(other.positions[j] - vertexPlus);
 	}
-	float length1Minus, length1Plus; // Edge pairing 1
+	float length1Minus, length1Plus; // Vertex pairing 1
 	{
 		int i = closestPair1.x;
 		int j = closestPair1.y;
@@ -508,19 +518,8 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		length1Minus = length(other.positions[j] - vertexMinus);
 		length1Plus = length(other.positions[j] - vertexPlus);
 	}
-	/*float length2Minus, length2Plus; // Third vertices pairing
-	{
-		int i = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
-		int j = (closestPair0.y == 0 || closestPair1.y == 0) ? (closestPair0.y == 1 || closestPair1.y == 1) ? 2 : 1 : 0;
-		float3 mutation = currentMutated.positions[i] - current.positions[i];
-		float3 vertexPlus = current.positions[i] + mutation;
-		float3 vertexMinus = current.positions[i] - mutation;
-		float3 otherVertex = other.positions[j];
-		length2Minus = length(other.positions[j] - vertexMinus);
-		length2Plus = length(other.positions[j] - vertexPlus);
-	}*/
 
-	// Attract closest pairs
+	// Attract closest pairs to form an edge
 	float lengthMinus = length0Minus + length1Minus;
 	float lengthPlus = length0Plus + length1Plus;
 	//lengthMinus += 1.0 / (length2Minus * 1000);
@@ -530,15 +529,29 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 	float lossDiff = lossMinus - lossPlus;
 	float accumulateLossDiff = lossDiff * 256 * 256 * _StructuralLossWeight;
 	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, accumulateLossDiff);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+	//InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
 
-	// Repel third vertices
-	/*lossMinus = VertexLossFunction(length2Minus, currentAvgSize);
-	lossPlus = VertexLossFunction(length2Plus, currentAvgSize);
+	// Force third vertices to be on opposite sides of the pairing line
+	float length2Minus, length2Plus, lossLength; // Third vertices pairing
+	{
+		int i = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
+		int j = (closestPair0.y == 0 || closestPair1.y == 0) ? (closestPair0.y == 1 || closestPair1.y == 1) ? 2 : 1 : 0;
+		float3 mutation = currentMutated.positions[i] - current.positions[i];
+		float3 vertexPlus = current.positions[i] + mutation;
+		float3 vertexMinus = current.positions[i] - mutation;
+		float3 otherVertex = other.positions[j];
+		float3 lineDir = normalize(other.positions[closestPair1.y] - other.positions[closestPair0.y]);
+		length2Minus = length(ProjectPointOnLine(otherVertex, otherVertex + lineDir, vertexMinus) - vertexMinus);
+		length2Plus = length(ProjectPointOnLine(otherVertex, otherVertex + lineDir, vertexPlus) - vertexPlus);
+		lossLength = length(ProjectPointOnLine(other.positions[closestPair0.y], other.positions[closestPair1.y], otherVertex) - otherVertex);
+	}
+
+	lossMinus = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
+	lossPlus = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
 	lossDiff = lossMinus - lossPlus;
-	accumulateLossDiff = lossDiff * 256 * 256 * _StructuralLossWeight;
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, -accumulateLossDiff);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);*/
+	accumulateLossDiff = lossDiff * 256 * 256 * _StructuralLossWeight * 1;
+	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, accumulateLossDiff);
+	//InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
 #endif
 }
 

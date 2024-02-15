@@ -166,7 +166,7 @@ MonoBehaviour:
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  primitiveCount: 1000
+  primitiveCount: 16000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
@@ -189,8 +189,8 @@ MonoBehaviour:
   separateFreeViewCamera: 1
   displayCatmullClarkControlCage: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 300, y: 0.001}
-  doublingAmount: 10
+  lrGeometryStartMulAndSpeed: {x: 0, y: 0}
+  doublingAmount: 0
   doubleEveryXSteps: 500
   optimizer: 1
   lossMode: 1
@@ -206,11 +206,11 @@ MonoBehaviour:
   globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0.00005
-  learningRateColor: 0.005
+  learningRatePosition: 0.001
+  learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 5
+  structuralLossWeight: 10
   doPrimitiveResampling: 1
   resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
