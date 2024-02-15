@@ -38,7 +38,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty stepForward;
 	SerializedProperty displayMode;
 	SerializedProperty separateFreeViewCamera;
-	SerializedProperty displayCatmullClarkControlCage;
+	SerializedProperty debugTriangleView;
 
 	SerializedProperty lrGlobalStartMulAndSpeed;
 	SerializedProperty lrGeometryStartMulAndSpeed;
@@ -113,7 +113,7 @@ public class MutationOptimizerEditor : Editor
 		stepForward = serializedObject.FindProperty("stepForward");
 		displayMode = serializedObject.FindProperty("displayMode");
 		separateFreeViewCamera = serializedObject.FindProperty("separateFreeViewCamera");
-		displayCatmullClarkControlCage = serializedObject.FindProperty("displayCatmullClarkControlCage");
+		debugTriangleView = serializedObject.FindProperty("debugTriangleView");
 
 		lrGlobalStartMulAndSpeed = serializedObject.FindProperty("lrGlobalStartMulAndSpeed");
 		lrGeometryStartMulAndSpeed = serializedObject.FindProperty("lrGeometryStartMulAndSpeed");
@@ -278,8 +278,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(pause);
 		EditorGUILayout.PropertyField(displayMode);
 		EditorGUILayout.PropertyField(separateFreeViewCamera);
-		if (optimPrimitive.enumValueIndex == 6)
-			EditorGUILayout.PropertyField(displayCatmullClarkControlCage);
+		EditorGUILayout.PropertyField(debugTriangleView);
 		if ((optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4) && GUILayout.Button("Double Primitive Count"))
 			needsToDoublePrimitives.boolValue = true;
 		if (optimPrimitive.enumValueIndex == 3 && GUILayout.Button("Double Volume Resolution"))

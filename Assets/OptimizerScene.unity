@@ -161,7 +161,7 @@ MonoBehaviour:
   targetResolution: {x: 512, y: 512}
   targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
-  target3DMesh: {fileID: 8164078560115793440}
+  target3DMesh: {fileID: 625167293}
   target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
@@ -169,7 +169,7 @@ MonoBehaviour:
   primitiveCount: 16000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
+  initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
@@ -187,17 +187,17 @@ MonoBehaviour:
   stepForward: 0
   displayMode: 0
   separateFreeViewCamera: 1
-  displayCatmullClarkControlCage: 0
+  debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 0, y: 0}
+  lrGeometryStartMulAndSpeed: {x: 0, y: 0.001}
   doublingAmount: 0
-  doubleEveryXSteps: 500
+  doubleEveryXSteps: 250
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 1
+  optimSupersampling: 0.5
   doAlphaLoss: 1
-  doStructuralLoss: 1
+  doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 64
   antitheticMutationsPerFrame: 1
@@ -210,7 +210,7 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 10
+  structuralLossWeight: 3
   doPrimitiveResampling: 1
   resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
@@ -653,8 +653,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.0031281272, y: 0.95100784, z: 0.009627386, w: 0.30900115}
-  m_LocalPosition: {x: 1.2572039, y: 0.51390445, z: 0.016641105}
+  m_LocalRotation: {x: 0.115816504, y: -0.20644915, z: 0.024617558, w: 0.97126687}
+  m_LocalPosition: {x: 0.39629543, y: 0.23571494, z: -0.89009404}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -680,7 +680,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 23f4784fc4d54e64a8513591b72093cb, type: 3}
   m_Name: 

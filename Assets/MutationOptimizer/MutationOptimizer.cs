@@ -143,7 +143,7 @@ public class MutationOptimizer : MonoBehaviour
 	public bool stepForward = false;
 	public DisplayMode displayMode = DisplayMode.Optimization;
 	public bool separateFreeViewCamera = true;
-	public bool displayCatmullClarkControlCage = false;
+	public bool debugTriangleView = false;
 
 	public Vector2 lrGlobalStartMulAndSpeed = new Vector2(0, 0);
 	public Vector2 lrGeometryStartMulAndSpeed = new Vector2(0, 0);
@@ -588,6 +588,7 @@ public class MutationOptimizer : MonoBehaviour
 				GL.End();
 			}
 
+			rasterMaterial.SetFloat("_DebugTriangleView", debugTriangleView == true ? 1.0f : 0.0f);
 			rasterMaterial.SetVector("_CurrentCameraWorldPos", cameraPos);
 			rasterMaterial.SetFloat("_SimpleColorRender", 1.0f);
 			rasterMaterial.SetInt("_PrimitiveCount", primitiveBuffer[0].count);

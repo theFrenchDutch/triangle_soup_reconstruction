@@ -29,6 +29,7 @@ Shader "Custom/TrianglePrimitiveRaster"
 			float _SimpleColorRender;
 			float4x4 _CameraMatrixVP;
 			float3 _CurrentCameraWorldPos;
+			float _DebugTriangleView;
 
 
 			// ========================== VERTEX SHADER ==========================
@@ -80,7 +81,8 @@ Shader "Custom/TrianglePrimitiveRaster"
 					// Fetch color
 					PrimitiveData primitiveData = _PrimitiveBuffer[input.primitiveID];
 					float4 color = FetchColorFromPrimitive(primitiveData, input.worldViewDir, input.barycentric.xy);
-					color.rgb = GetRandomColor(input.primitiveID);
+					if (_DebugTriangleView > 0.5)
+						color.rgb = GetRandomColor(input.primitiveID);
 					return float4(color.rgb, 1);
 				}
 
