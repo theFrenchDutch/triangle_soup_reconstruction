@@ -154,6 +154,7 @@ MonoBehaviour:
   resolvedFrameFreeView: {fileID: 0}
   resolvedFrameMutatedMinus: {fileID: 0}
   resolvedFrameMutatedPlus: {fileID: 0}
+  tempResolvedFrameBuffer: {fileID: 0}
   targetFrameBuffer: {fileID: 0}
   currentOptimStep: 0
   dummy: 1
@@ -187,7 +188,7 @@ MonoBehaviour:
   pause: 0
   stepForward: 0
   displayMode: 0
-  separateFreeViewCamera: 0
+  separateFreeViewCamera: 1
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.001}
@@ -681,7 +682,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 23f4784fc4d54e64a8513591b72093cb, type: 3}
   m_Name: 

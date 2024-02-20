@@ -21,10 +21,12 @@ public class MutationOptimizer : MonoBehaviour
 	public RenderTexture resolvedFrameFreeView;
 	public RenderTexture resolvedFrameMutatedMinus;
 	public RenderTexture resolvedFrameMutatedPlus;
+	public RenderTexture tempResolvedFrameBuffer;
 	public RenderTexture targetFrameBuffer;
 	private Material rasterMaterial;
 	private Material envMapMaterial;
 	private Material blurringMaterial;
+	private Material adaptiveTriangleBlurMaterial;
 	private Camera cameraDisplay;
 	private Camera cameraOptim;
 	private ComputeShader primitiveRendererCS;
@@ -199,6 +201,8 @@ public class MutationOptimizer : MonoBehaviour
 		cameraOptim = GameObject.Find("CameraOptim").GetComponent<Camera>();
 		blurringMaterial = new Material(Shader.Find("Custom/Blurring"));
 		blurringMaterial.hideFlags = HideFlags.HideAndDontSave;
+		adaptiveTriangleBlurMaterial = new Material(Shader.Find("Custom/AdaptiveTriangleBlur"));
+		adaptiveTriangleBlurMaterial.hideFlags = HideFlags.HideAndDontSave;
 
 		kernelClearRenderTarget = primitiveRendererCS.FindKernel("ClearRenderTarget");
 		kernelResolveOpaqueRender = primitiveRendererCS.FindKernel("ResolveOpaqueRender");
@@ -281,6 +285,7 @@ public class MutationOptimizer : MonoBehaviour
 			ResetKeywords(primitiveRendererCS, true, true, true);
 			ResetKeywords(mutationOptimizerCS, true, true, true);
 			ResetKeywords(rasterMaterial, true, true, true);
+			ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 			ResetOptimizationStep(0);
 			if (optimizeEnvMap == true)
 				ResetOptimizationStep(1);
@@ -292,6 +297,7 @@ public class MutationOptimizer : MonoBehaviour
 			ResetKeywords(primitiveRendererCS, true, true, true);
 			ResetKeywords(mutationOptimizerCS, true, true, true);
 			ResetKeywords(rasterMaterial, true, true, true);
+			ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 		}
 
 		// TEMP HACK WARMUP
@@ -345,8 +351,6 @@ public class MutationOptimizer : MonoBehaviour
 			{
 				RandomizeCameraView();
 				cameraOptim.Render();
-				if (optimSupersampling > 1)
-					targetFrameBuffer.GenerateMips();
 			}
 			// Set up new view point for optim COLMAP
 			else if (targetMode == TargetMode.COLMAP)
@@ -357,8 +361,6 @@ public class MutationOptimizer : MonoBehaviour
 				if (debugManualColmapChoice >= 0)
 					randTarget = debugManualColmapChoice;
 				Graphics.Blit(colmapViewsTarget[randTarget], targetFrameBuffer);
-				if (optimSupersampling > 1)
-					targetFrameBuffer.GenerateMips();
 				cameraOptim.transform.position = colmapViewsPos[randTarget];
 				cameraOptim.transform.rotation = colmapViewsRot[randTarget];
 			}
@@ -568,7 +570,7 @@ public class MutationOptimizer : MonoBehaviour
 		if (rasterMaterial == null || primitiveBuffer[0] == null || Camera.current == cameraOptim || displayMode != DisplayMode.Optimization || separateFreeViewCamera == false || (transparencyMode == TransparencyMode.SortedAlpha && perPixelFragmentListBuffer == null))
 			return;
 
-		if (transparencyMode == TransparencyMode.None && (optimPrimitive == PrimitiveType.TrianglesSolidUnlit || optimPrimitive == PrimitiveType.TrianglesGradientUnlit || optimPrimitive == PrimitiveType.TrianglesGaussianUnlit))
+		if (transparencyMode == TransparencyMode.None && doAdaptiveTriangleBlurring == false)
 		{
 			Vector3 cameraPos = Camera.current.transform.position;
 			Matrix4x4 cameraVP = GL.GetGPUProjectionMatrix(Camera.current.projectionMatrix, true) * Camera.current.worldToCameraMatrix;
@@ -600,6 +602,15 @@ public class MutationOptimizer : MonoBehaviour
 			rasterMaterial.SetBuffer("_PrimitiveBuffer", primitiveBuffer[0]);
 			rasterMaterial.SetPass(0);
 			Graphics.DrawProceduralNow(MeshTopology.Triangles, 3, primitiveCount);
+		}
+		else
+		{
+			RenderTexture cameraTarget = RenderTexture.active;
+			RenderProceduralPrimitivesOptimScene(Camera.current, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget);
+			RenderTexture.active = cameraTarget;
+			if (doAdaptiveTriangleBlurring == true)
+				ApplyAdaptiveTriangleBlur(Camera.current, optimRenderTarget, resolvedFrameFreeView);
+			Graphics.Blit(resolvedFrameFreeView, cameraTarget);
 		}
 	}
 
@@ -724,17 +735,9 @@ public class MutationOptimizer : MonoBehaviour
 				primitiveRendererCS.Dispatch(kernelResolveOpaqueRender, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 			}
 		}*/
-
-		// Generate mip maps of resolved color buffer
-		if (renderTargetToUse.useMipMap == true && renderTargetToUse.autoGenerateMips == false && optimSupersampling > 1)
-			renderTargetToUse.GenerateMips();
-
-		// Test
-		if (doAdaptiveTriangleBlurring == true)
-			ApplyAdaptiveTriangleBlurring(renderTargetToUse);
 	}
 
-	public void ApplyAdaptiveTriangleBlurring(RenderTexture target)
+	public void BlurImageBloomStyle(RenderTexture target)
 	{
 		RenderTexture source = RenderTexture.GetTemporary(target.width, target.height, 0, target.format);
 		Graphics.Blit(target, source);
@@ -773,6 +776,18 @@ public class MutationOptimizer : MonoBehaviour
 		Graphics.Blit(currentSource, target, blurringMaterial, 1);
 		RenderTexture.ReleaseTemporary(currentSource);
 		RenderTexture.ReleaseTemporary(source);
+	}
+
+	public void ApplyAdaptiveTriangleBlur(Camera cameraToUse, RenderTexture idBuffer, RenderTexture target)
+	{
+		Graphics.Blit(target, tempResolvedFrameBuffer);
+		tempResolvedFrameBuffer.GenerateMips();
+		adaptiveTriangleBlurMaterial.SetBuffer("_PrimitiveBuffer", primitiveBuffer[0]);
+		adaptiveTriangleBlurMaterial.SetTexture("_DepthIDBuffer", idBuffer);
+		adaptiveTriangleBlurMaterial.SetVector("_CustomWorldSpaceCameraPos", cameraToUse.transform.position);
+		adaptiveTriangleBlurMaterial.SetFloat("_CameraFovVRad", cameraToUse.fieldOfView * Mathf.Deg2Rad);
+		adaptiveTriangleBlurMaterial.SetInt("_OutputHeight", target.height);
+		Graphics.Blit(tempResolvedFrameBuffer, target, adaptiveTriangleBlurMaterial);
 	}
 
 
@@ -1087,6 +1102,7 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(primitiveRendererCS, true, true, true);
 		ResetKeywords(mutationOptimizerCS, true, true, true);
 		ResetKeywords(rasterMaterial, true, true, true);
+		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 		tempSortedValidBuffer.Release();
 		tempInvalidBuffer.Release();
 	}
@@ -1126,6 +1142,7 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(primitiveRendererCS, true, true, true);
 		ResetKeywords(mutationOptimizerCS, true, true, true);
 		ResetKeywords(rasterMaterial, true, true, true);
+		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 	}
 
 
@@ -1254,6 +1271,7 @@ public class MutationOptimizer : MonoBehaviour
 		if (optimizeEnvMap == true)
 			ResetOptimizationStep(1);
 		ResetKeywords(rasterMaterial, true, true, true);
+		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 
 		// Set up 3D view camera
 		cameraOptim.enabled = false;
@@ -1325,6 +1343,7 @@ public class MutationOptimizer : MonoBehaviour
 		resolvedFrameFreeView = new RenderTexture(actualResolution.x, actualResolution.y, 32, resolveFormat, RenderTextureReadWrite.Linear);
 		resolvedFrameFreeView.enableRandomWrite = true;
 		resolvedFrameFreeView.useMipMap = true;
+		resolvedFrameFreeView.autoGenerateMips = false;
 		resolvedFrameMutatedMinus = new RenderTexture(actualResolution.x, actualResolution.y, 32, resolveFormat, RenderTextureReadWrite.Linear);
 		resolvedFrameMutatedMinus.enableRandomWrite = true;
 		resolvedFrameMutatedMinus.useMipMap = true;
@@ -1333,6 +1352,11 @@ public class MutationOptimizer : MonoBehaviour
 		resolvedFrameMutatedPlus.enableRandomWrite = true;
 		resolvedFrameMutatedPlus.useMipMap = true;
 		resolvedFrameMutatedPlus.autoGenerateMips = false;
+		tempResolvedFrameBuffer = new RenderTexture(actualResolution.x, actualResolution.y, 32, resolveFormat, RenderTextureReadWrite.Linear);
+		tempResolvedFrameBuffer.enableRandomWrite = true;
+		tempResolvedFrameBuffer.useMipMap = true;
+		tempResolvedFrameBuffer.autoGenerateMips = false;
+		tempResolvedFrameBuffer.filterMode = FilterMode.Trilinear;
 		targetFrameBuffer = new RenderTexture(actualResolution.x, actualResolution.y, 32, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 		targetFrameBuffer.useMipMap = true;
 		targetFrameBuffer.autoGenerateMips = false;
