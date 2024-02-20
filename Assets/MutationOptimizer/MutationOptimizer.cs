@@ -24,6 +24,7 @@ public class MutationOptimizer : MonoBehaviour
 	public RenderTexture targetFrameBuffer;
 	private Material rasterMaterial;
 	private Material envMapMaterial;
+	private Material blurringMaterial;
 	private Camera cameraDisplay;
 	private Camera cameraOptim;
 	private ComputeShader primitiveRendererCS;
@@ -137,6 +138,7 @@ public class MutationOptimizer : MonoBehaviour
 	public Vector2 randomViewZoomRange = Vector2.one;
 	public bool optimizeEnvMap = false;
 	public int envMapResolution = 256;
+	public bool doAdaptiveTriangleBlurring = false;
 
 	public bool reset = false;
 	public bool pause = false;
@@ -195,6 +197,8 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS = (ComputeShader)Resources.Load("MutationOptimizer");
 		cameraDisplay = GameObject.Find("CameraDisplay").GetComponent<Camera>();
 		cameraOptim = GameObject.Find("CameraOptim").GetComponent<Camera>();
+		blurringMaterial = new Material(Shader.Find("Custom/Blurring"));
+		blurringMaterial.hideFlags = HideFlags.HideAndDontSave;
 
 		kernelClearRenderTarget = primitiveRendererCS.FindKernel("ClearRenderTarget");
 		kernelResolveOpaqueRender = primitiveRendererCS.FindKernel("ResolveOpaqueRender");
@@ -655,7 +659,7 @@ public class MutationOptimizer : MonoBehaviour
 			primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PrimitiveKillCounters", primitiveKillCounters);
 			primitiveRendererCS.Dispatch(kernelResolveOpaqueRender, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 		}
-		else if (transparencyMode == TransparencyMode.SortedAlpha)
+		/*else if (transparencyMode == TransparencyMode.SortedAlpha)
 		{
 			// Clear alpha stuff
 			primitiveRendererCS.SetBuffer(kernelResetAlphaCounters, "_PerPixelFragmentCounter", perPixelFragmentCounterBuffer);
@@ -719,11 +723,56 @@ public class MutationOptimizer : MonoBehaviour
 				primitiveRendererCS.SetBuffer(kernelResolveOpaqueRender, "_PerPixelFragmentList", perPixelFragmentListBuffer);
 				primitiveRendererCS.Dispatch(kernelResolveOpaqueRender, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 			}
-		}
+		}*/
 
 		// Generate mip maps of resolved color buffer
 		if (renderTargetToUse.useMipMap == true && renderTargetToUse.autoGenerateMips == false && optimSupersampling > 1)
 			renderTargetToUse.GenerateMips();
+
+		// Test
+		if (doAdaptiveTriangleBlurring == true)
+			ApplyAdaptiveTriangleBlurring(renderTargetToUse);
+	}
+
+	public void ApplyAdaptiveTriangleBlurring(RenderTexture target)
+	{
+		RenderTexture source = RenderTexture.GetTemporary(target.width, target.height, 0, target.format);
+		Graphics.Blit(target, source);
+
+		int iterations = 5;
+		int width = source.width / 2;
+		int height = source.height / 2;
+		RenderTextureFormat format = source.format;
+
+		RenderTexture[] textures = new RenderTexture[16];
+		RenderTexture currentDestination = textures[0] = RenderTexture.GetTemporary(width, height, 0, format);
+		Graphics.Blit(source, currentDestination, blurringMaterial, 0);
+		RenderTexture currentSource = currentDestination;
+
+		int i = 1;
+		for (; i < iterations; i++)
+		{
+			width /= 2;
+			height /= 2;
+			if (width < 2 || height < 2)
+				break;
+			currentDestination = textures[i] = RenderTexture.GetTemporary(width, height, 0, format);
+			Graphics.Blit(currentSource, currentDestination, blurringMaterial, 0);
+			currentSource = currentDestination;
+		}
+
+		for (i -= 2; i >= 0; i--)
+		{
+			currentDestination = textures[i];
+			textures[i] = null;
+			Graphics.Blit(currentSource, currentDestination, blurringMaterial, 1);
+			RenderTexture.ReleaseTemporary(currentSource);
+			currentSource = currentDestination;
+		}
+
+		Graphics.Blit(currentSource, target, blurringMaterial, 1);
+		RenderTexture.ReleaseTemporary(currentSource);
+		RenderTexture.ReleaseTemporary(source);
 	}
 
 

@@ -158,10 +158,10 @@ MonoBehaviour:
   currentOptimStep: 0
   dummy: 1
   needsToDoublePrimitives: 1
-  targetResolution: {x: 512, y: 512}
-  targetMode: 2
+  targetResolution: {x: 1024, y: 1024}
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
-  target3DMesh: {fileID: 625167293}
+  target3DMesh: {fileID: 8164078560115793440}
   target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
@@ -182,11 +182,12 @@ MonoBehaviour:
   randomViewZoomRange: {x: 2, y: 2}
   optimizeEnvMap: 0
   envMapResolution: 64
+  doAdaptiveTriangleBlurring: 0
   reset: 0
   pause: 0
   stepForward: 0
   displayMode: 0
-  separateFreeViewCamera: 1
+  separateFreeViewCamera: 0
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.001}
@@ -195,7 +196,7 @@ MonoBehaviour:
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 0.5
+  optimSupersampling: 1
   doAlphaLoss: 1
   doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
