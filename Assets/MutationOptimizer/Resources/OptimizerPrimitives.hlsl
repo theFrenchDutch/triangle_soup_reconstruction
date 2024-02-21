@@ -113,6 +113,11 @@ float Unsigned3DTriangleArea(float3 A, float3 B, float3 C)
 	return length(cross(B - A, C - A));
 }
 
+float Unsigned2DTriangleArea(float2 A, float2 B, float2 C)
+{
+	return 0.5 * abs((A.x * B.y + B.x * C.y + C.x * A.y) - (A.y * B.x + B.y * C.x + C.y * A.x));
+}
+
 float3 HSVtoRGB(float3 hsv)
 {
 	hsv.x = fmod(100.0 + hsv.x, 1.0);                                       // Ensure [0,1[

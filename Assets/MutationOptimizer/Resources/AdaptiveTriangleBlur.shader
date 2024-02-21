@@ -28,6 +28,7 @@ Shader "Custom/AdaptiveTriangleBlur"
 			float3 _CustomWorldSpaceCameraPos;
 			float _CameraFovVRad;
 			float4x4 _CameraMatrixVP;
+			int _PrimitiveCount;
 
 			struct appdata
 			{
@@ -97,19 +98,27 @@ Shader "Custom/AdaptiveTriangleBlur"
 				float4 depthIDBufferFetch = _DepthIDBuffer[pixelCoord];
 				uint primitiveID = asuint(depthIDBufferFetch.r);
 				PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
+				float lodLevel = 0;
 
-				// Compute filter size based on shortest triangle edge length in screen space
-				float4 temp = mul(_CameraMatrixVP, float4(primitiveData.positions[0], 1));
-				float2 pixelPos0 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
-				temp = mul(_CameraMatrixVP, float4(primitiveData.positions[1], 1));
-				float2 pixelPos1 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
-				temp = mul(_CameraMatrixVP, float4(primitiveData.positions[2], 1));
-				float2 pixelPos2 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
-				float minEdgeLengthPixels = min(length(pixelPos0 - pixelPos1), min(length(pixelPos1 - pixelPos2), length(pixelPos2 - pixelPos0)));
+				if (primitiveID < _PrimitiveCount)
+				{
+					// Compute filter size based on shortest triangle edge length in screen space
+					float4 temp = mul(_CameraMatrixVP, float4(primitiveData.positions[0], 1));
+					float2 pixelPos0 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
+					temp = mul(_CameraMatrixVP, float4(primitiveData.positions[1], 1));
+					float2 pixelPos1 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
+					temp = mul(_CameraMatrixVP, float4(primitiveData.positions[2], 1));
+					float2 pixelPos2 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
+					float minEdgeLengthPixels = min(length(pixelPos0 - pixelPos1), min(length(pixelPos1 - pixelPos2), length(pixelPos2 - pixelPos0)));
+					float maxEdgeLengthPixels = max(length(pixelPos0 - pixelPos1), max(length(pixelPos1 - pixelPos2), length(pixelPos2 - pixelPos0)));
+					float avgEdgeLengthPixels = (length(pixelPos0 - pixelPos1) + length(pixelPos1 - pixelPos2) + length(pixelPos2 - pixelPos0)) / 3.0;
+					float trianglePixelArea = sqrt(Unsigned2DTriangleArea(pixelPos0, pixelPos1, pixelPos2));
 
-				// Return blurred input
-				float lodLevel = log2(minEdgeLengthPixels) * 0.66;
-				lodLevel = int(lodLevel);
+					// Return blurred input
+					lodLevel = log2(trianglePixelArea) * 0.75;
+					lodLevel = int(lodLevel);
+				}
+
 				//return float4(minEdgeLengthPixels.xxx / 1024, 1);
 				float4 blurredSample = tex2DBicubicLod(i.uv, lodLevel);
 				return float4(blurredSample.rgb, 1);

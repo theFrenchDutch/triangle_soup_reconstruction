@@ -32,7 +32,8 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty randomViewZoomRange;
 	SerializedProperty optimizeEnvMap;
 	SerializedProperty envMapResolution;
-	SerializedProperty doAdaptiveTriangleBlurring;
+	SerializedProperty displayAdaptiveTriangleBlurring;
+	SerializedProperty optimAdaptiveTriangleBlurring;
 
 	SerializedProperty reset;
 	SerializedProperty pause;
@@ -108,7 +109,8 @@ public class MutationOptimizerEditor : Editor
 		randomViewZoomRange = serializedObject.FindProperty("randomViewZoomRange");
 		optimizeEnvMap = serializedObject.FindProperty("optimizeEnvMap");
 		envMapResolution = serializedObject.FindProperty("envMapResolution");
-		doAdaptiveTriangleBlurring = serializedObject.FindProperty("doAdaptiveTriangleBlurring");
+		displayAdaptiveTriangleBlurring = serializedObject.FindProperty("displayAdaptiveTriangleBlurring");
+		optimAdaptiveTriangleBlurring = serializedObject.FindProperty("optimAdaptiveTriangleBlurring");
 
 		reset = serializedObject.FindProperty("reset");
 		pause = serializedObject.FindProperty("pause");
@@ -268,7 +270,8 @@ public class MutationOptimizerEditor : Editor
 			EditorGUILayout.PropertyField(randomViewZoomRange);
 		EditorGUILayout.PropertyField(optimizeEnvMap);
 		EditorGUILayout.PropertyField(envMapResolution);
-		EditorGUILayout.PropertyField(doAdaptiveTriangleBlurring);
+		EditorGUILayout.PropertyField(displayAdaptiveTriangleBlurring);
+		EditorGUILayout.PropertyField(optimAdaptiveTriangleBlurring);
 
 		// Controls
 		EditorGUILayout.Space();

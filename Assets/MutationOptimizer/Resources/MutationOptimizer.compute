@@ -170,8 +170,8 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	// Compute loss
 	float4 lossMinusRGBA = pow(abs(targetColor - colorRenderMinus), _LossMode == 1 ? 2.0 : 1.0);
 	float4 lossPlusRGBA = pow(abs(targetColor - colorRenderPlus), _LossMode == 1 ? 2.0 : 1.0);
-	float lossMinus = lossMinusRGBA.x + lossMinusRGBA.y + lossMinusRGBA.z + lossMinusRGBA.a * _DoAlphaLoss * 10;
-	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss * 10;
+	float lossMinus = lossMinusRGBA.x + lossMinusRGBA.y + lossMinusRGBA.z + lossMinusRGBA.a * _DoAlphaLoss * 1;
+	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss * 1;
 	float lossDiffFloat = lossMinus - lossPlus;
 
 	int lossDiff = lossDiffFloat * 256 * 256 * 1;

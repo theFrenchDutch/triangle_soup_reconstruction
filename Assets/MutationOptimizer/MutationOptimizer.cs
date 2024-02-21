@@ -140,7 +140,8 @@ public class MutationOptimizer : MonoBehaviour
 	public Vector2 randomViewZoomRange = Vector2.one;
 	public bool optimizeEnvMap = false;
 	public int envMapResolution = 256;
-	public bool doAdaptiveTriangleBlurring = false;
+	public bool displayAdaptiveTriangleBlurring = false;
+	public bool optimAdaptiveTriangleBlurring = false;
 
 	public bool reset = false;
 	public bool pause = false;
@@ -570,7 +571,7 @@ public class MutationOptimizer : MonoBehaviour
 		if (rasterMaterial == null || primitiveBuffer[0] == null || Camera.current == cameraOptim || displayMode != DisplayMode.Optimization || separateFreeViewCamera == false || (transparencyMode == TransparencyMode.SortedAlpha && perPixelFragmentListBuffer == null))
 			return;
 
-		if (transparencyMode == TransparencyMode.None && doAdaptiveTriangleBlurring == false)
+		if (transparencyMode == TransparencyMode.None && displayAdaptiveTriangleBlurring == false)
 		{
 			Vector3 cameraPos = Camera.current.transform.position;
 			Matrix4x4 cameraVP = GL.GetGPUProjectionMatrix(Camera.current.projectionMatrix, true) * Camera.current.worldToCameraMatrix;
@@ -608,7 +609,7 @@ public class MutationOptimizer : MonoBehaviour
 			RenderTexture cameraTarget = RenderTexture.active;
 			RenderProceduralPrimitivesOptimScene(Camera.current, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget);
 			RenderTexture.active = cameraTarget;
-			if (doAdaptiveTriangleBlurring == true)
+			if (displayAdaptiveTriangleBlurring == true)
 			{
 				ApplyAdaptiveTriangleBlur(Camera.current, optimRenderTarget, resolvedFrameFreeView);
 			}
@@ -738,9 +739,9 @@ public class MutationOptimizer : MonoBehaviour
 			}
 		}*/
 
-		if (doAdaptiveTriangleBlurring == true)
+		if (optimAdaptiveTriangleBlurring == true)
 		{
-			//ApplyAdaptiveTriangleBlur(cameraToUse, idRenderTargetToUse, renderTargetToUse);
+			ApplyAdaptiveTriangleBlur(cameraToUse, idRenderTargetToUse, renderTargetToUse);
 		}
 	}
 
@@ -790,6 +791,7 @@ public class MutationOptimizer : MonoBehaviour
 		Graphics.Blit(target, tempResolvedFrameBuffer);
 		tempResolvedFrameBuffer.GenerateMips();
 		adaptiveTriangleBlurMaterial.SetBuffer("_PrimitiveBuffer", primitiveBuffer[0]);
+		adaptiveTriangleBlurMaterial.SetInt("_PrimitiveCount", primitiveBuffer[0].count);
 		adaptiveTriangleBlurMaterial.SetTexture("_DepthIDBuffer", idBuffer);
 		adaptiveTriangleBlurMaterial.SetVector("_CustomWorldSpaceCameraPos", cameraToUse.transform.position);
 		adaptiveTriangleBlurMaterial.SetFloat("_CameraFovVRad", cameraToUse.fieldOfView * Mathf.Deg2Rad);

@@ -97,7 +97,7 @@ public class OrbitCamera : MonoBehaviour
 			//Cursor.visible = false;
 			//Cursor.lockState = CursorLockMode.Locked;
 
-			if (Input.GetMouseButton(1) && disableControls == false)
+			if (Input.GetMouseButton(1) == true && Input.GetMouseButtonDown(1) == false && disableControls == false)
 			{
 				x += Input.GetAxis("Mouse X") * xSpeed * 0.02f;
 				y -= Input.GetAxis("Mouse Y") * ySpeed * 0.02f;
