@@ -609,7 +609,9 @@ public class MutationOptimizer : MonoBehaviour
 			RenderProceduralPrimitivesOptimScene(Camera.current, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget);
 			RenderTexture.active = cameraTarget;
 			if (doAdaptiveTriangleBlurring == true)
+			{
 				ApplyAdaptiveTriangleBlur(Camera.current, optimRenderTarget, resolvedFrameFreeView);
+			}
 			Graphics.Blit(resolvedFrameFreeView, cameraTarget);
 		}
 	}
@@ -735,6 +737,11 @@ public class MutationOptimizer : MonoBehaviour
 				primitiveRendererCS.Dispatch(kernelResolveOpaqueRender, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 			}
 		}*/
+
+		if (doAdaptiveTriangleBlurring == true)
+		{
+			//ApplyAdaptiveTriangleBlur(cameraToUse, idRenderTargetToUse, renderTargetToUse);
+		}
 	}
 
 	public void BlurImageBloomStyle(RenderTexture target)
@@ -786,7 +793,7 @@ public class MutationOptimizer : MonoBehaviour
 		adaptiveTriangleBlurMaterial.SetTexture("_DepthIDBuffer", idBuffer);
 		adaptiveTriangleBlurMaterial.SetVector("_CustomWorldSpaceCameraPos", cameraToUse.transform.position);
 		adaptiveTriangleBlurMaterial.SetFloat("_CameraFovVRad", cameraToUse.fieldOfView * Mathf.Deg2Rad);
-		adaptiveTriangleBlurMaterial.SetInt("_OutputHeight", target.height);
+		adaptiveTriangleBlurMaterial.SetMatrix("_CameraMatrixVP", GL.GetGPUProjectionMatrix(cameraToUse.projectionMatrix, true) * cameraToUse.worldToCameraMatrix);
 		Graphics.Blit(tempResolvedFrameBuffer, target, adaptiveTriangleBlurMaterial);
 	}
 
@@ -1356,7 +1363,7 @@ public class MutationOptimizer : MonoBehaviour
 		tempResolvedFrameBuffer.enableRandomWrite = true;
 		tempResolvedFrameBuffer.useMipMap = true;
 		tempResolvedFrameBuffer.autoGenerateMips = false;
-		tempResolvedFrameBuffer.filterMode = FilterMode.Trilinear;
+		tempResolvedFrameBuffer.filterMode = FilterMode.Bilinear;
 		targetFrameBuffer = new RenderTexture(actualResolution.x, actualResolution.y, 32, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 		targetFrameBuffer.useMipMap = true;
 		targetFrameBuffer.autoGenerateMips = false;
