@@ -377,6 +377,7 @@ public class MutationOptimizer : MonoBehaviour
 			// Accumulate gradients for this view step
 			mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
 			primitiveRendererCS.SetInt("_CurrentFrame", currentViewPoint);
+			primitiveRendererCS.SetVector("_RandomBackgroundColor", UnityEngine.Random.ColorHSV());
 			for (int j = 0; j < antitheticMutationsPerFrame; j++)
 			{
 				mutationOptimizerCS.SetInt("_CurrentMutation", j);
@@ -607,6 +608,7 @@ public class MutationOptimizer : MonoBehaviour
 		else
 		{
 			RenderTexture cameraTarget = RenderTexture.active;
+			primitiveRendererCS.SetVector("_RandomBackgroundColor", Color.black);
 			RenderProceduralPrimitivesOptimScene(Camera.current, primitiveBuffer, resolvedFrameFreeView, optimRenderTarget);
 			RenderTexture.active = cameraTarget;
 			if (displayAdaptiveTriangleBlurring == true)

@@ -159,13 +159,13 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	uint flatPixelCoord = pixelCoord.y * _OutputWidth + pixelCoord.x;
 	float2 pixelUV = (pixelCoord + 0.5) / float2(_OutputWidth, _OutputHeight);
 	float4 targetColor = _TargetTexture.SampleLevel(_LinearClampSampler, pixelUV, 0);
-	targetColor.rgb = pow(targetColor.rgb, 1.0 / 2.2);// *targetColor.a;
+	targetColor.rgb = pow(targetColor.rgb, 1.0 / 2.2) * targetColor.a;
 
 	// Fetch pre (0) and post (1) random move result, should already by alpha pre-multiplied
 	float4 colorRenderMinus = _ResolvedFrameMutatedMinus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
 	float4 colorRenderPlus = _ResolvedFrameMutatedPlus.SampleLevel(_LinearClampSampler, pixelUV, 0).rgba;
-	colorRenderMinus.rgb = pow(colorRenderMinus.rgb, 1.0 / 2.2);// *colorRenderMinus.a;
-	colorRenderPlus.rgb = pow(colorRenderPlus.rgb, 1.0 / 2.2);// *colorRenderPlus.a;
+	colorRenderMinus.rgb = pow(colorRenderMinus.rgb, 1.0 / 2.2) * colorRenderMinus.a;
+	colorRenderPlus.rgb = pow(colorRenderPlus.rgb, 1.0 / 2.2) * colorRenderPlus.a;
 
 	// Compute loss
 	float4 lossMinusRGBA = pow(abs(targetColor - colorRenderMinus), _LossMode == 1 ? 2.0 : 1.0);

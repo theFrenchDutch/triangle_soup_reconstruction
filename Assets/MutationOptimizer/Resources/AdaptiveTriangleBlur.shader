@@ -93,7 +93,7 @@ Shader "Custom/AdaptiveTriangleBlur"
 				return 1.0 + w3(a) / (w2(a) + w3(a));
 			}
 
-			float4 texture_bicubic(sampler2D tex, float2 uv, float4 texelSize, float lod)
+			float4 BicubicTex2DLod(sampler2D tex, float2 uv, float4 texelSize, float lod)
 			{
 				texelSize.zw /= pow(2.0, lod);
 				texelSize.zw = floor(texelSize.zw);
@@ -151,10 +151,7 @@ Shader "Custom/AdaptiveTriangleBlur"
 				}
 				//lodLevel = 6;
 
-				//return float4(minEdgeLengthPixels.xxx / 1024, 1);
-				//float4 blurredSample = tex2DBicubicLod(i.uv, lodLevel);
-				//blurredSample = tex2Dlod(_MainTex, float4(i.uv, 0, lodLevel));
-				float4 blurredSample = texture_bicubic(_MainTex, i.uv, _MainTex_TexelSize, lodLevel);
+				float4 blurredSample = BicubicTex2DLod(_MainTex, i.uv, _MainTex_TexelSize, lodLevel);
 				return float4(blurredSample.rgb, 1);
 			}
 			ENDCG

@@ -163,18 +163,18 @@ MonoBehaviour:
   targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: m60
+  target3DCOLMAPFolder: lighthouse
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 1
-  primitiveCount: 16000
-  primitiveInitSize: 0.1
+  primitiveCount: 1000000
+  primitiveInitSize: 0.05
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
-  colmapOnePrimitivePerInitPoint: 0
+  colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
-  colmapMaxInitPointDistance: 0.5
+  colmapMaxInitPointDistance: 9999
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
   sphericalHarmonicsMode: 0
   transparencyMode: 0
@@ -198,9 +198,9 @@ MonoBehaviour:
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 0.5
-  doAlphaLoss: 1
-  doStructuralLoss: 1
+  optimSupersampling: 1
+  doAlphaLoss: 0
+  doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
@@ -700,7 +700,7 @@ MonoBehaviour:
   yMaxLimit: 89
   x: -194.25
   y: 13.7199955
-  disableControls: 1
+  disableControls: 0
   useBoundsCenter: 1
 --- !u!1 &965840381
 GameObject:
