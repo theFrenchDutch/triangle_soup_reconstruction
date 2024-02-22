@@ -39,6 +39,12 @@ public class OrbitCamera : MonoBehaviour
 
 	void Update()
 	{
+		if (Input.GetKeyDown(KeyCode.C))
+			disableControls = !disableControls;
+
+		if (disableControls == true)
+			return;
+
 		// Manual animation
 		//x = math.pow(math.cos(Time.timeSinceLevelLoad * 0.5f) * 0.5f + 0.5f, 1.0f) * 180.0f + 90.0f;
 		//y = math.pow(math.cos(Time.timeSinceLevelLoad * 0.15f) * 0.5f + 0.5f, 1.0f) * 80.0f - 20.0f;

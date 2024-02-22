@@ -50,45 +50,76 @@ Shader "Custom/AdaptiveTriangleBlur"
 				return o;
 			}
 
-			float4 Cubic(float v)
+			// w0, w1, w2, and w3 are the four cubic B-spline basis functions
+			float w0(float a)
 			{
-				float4 n = float4(1.0, 2.0, 3.0, 4.0) - v;
-				float4 s = n * n * n;
-				float x = s.x;
-				float y = s.y - 4.0 * s.x;
-				float z = s.z - 4.0 * s.y + 6.0 * s.x;
-				float w = 6.0 - x - y - z;
-				return float4(x, y, z, w) * (1.0 / 6.0);
+				return (1.0 / 6.0) * (a * (a * (-a + 3.0) - 3.0) + 1.0);
 			}
 
-			float4 tex2DBicubicLod(float2 texCoords, float lod)
+			float w1(float a)
 			{
-				float2 texSize = _MainTex_TexelSize.zw / pow(2.0, lod);
-				float2 invTexSize = 1.0 / texSize;
-				texCoords = texCoords * texSize - 0.5;
+				return (1.0 / 6.0) * (a * a * (3.0 * a - 6.0) + 4.0);
+			}
 
-				float2 fxy = frac(texCoords);
-				texCoords -= fxy;
+			float w2(float a)
+			{
+				return (1.0 / 6.0) * (a * (a * (-3.0 * a + 3.0) + 3.0) + 1.0);
+			}
 
-				float4 xcubic = Cubic(fxy.x);
-				float4 ycubic = Cubic(fxy.y);
+			float w3(float a)
+			{
+				return (1.0 / 6.0) * (a * a * a);
+			}
 
-				float4 c = texCoords.xxyy + float2(-0.5, 1.5).xyxy;
+			// g0 and g1 are the two amplitude functions
+			float g0(float a)
+			{
+				return w0(a) + w1(a);
+			}
 
-				float4 s = float4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
-				float4 offset = c + float4(xcubic.yw, ycubic.yw) / s;
+			float g1(float a)
+			{
+				return w2(a) + w3(a);
+			}
 
-				offset *= invTexSize.xxyy;
+			// h0 and h1 are the two offset functions
+			float h0(float a)
+			{
+				return -1.0 + w1(a) / (w0(a) + w1(a));
+			}
 
-				float4 sample0 = tex2Dlod(_MainTex, float4(offset.xz, 0, lod));
-				float4 sample1 = tex2Dlod(_MainTex, float4(offset.yz, 0, lod));
-				float4 sample2 = tex2Dlod(_MainTex, float4(offset.xw, 0, lod));
-				float4 sample3 = tex2Dlod(_MainTex, float4(offset.yw, 0, lod));
+			float h1(float a)
+			{
+				return 1.0 + w3(a) / (w2(a) + w3(a));
+			}
 
-				float sx = s.x / (s.x + s.y);
-				float sy = s.z / (s.z + s.w);
+			float4 texture_bicubic(sampler2D tex, float2 uv, float4 texelSize, float lod)
+			{
+				texelSize.zw /= pow(2.0, lod);
+				texelSize.zw = floor(texelSize.zw);
+				texelSize.xy = 1.0 / texelSize.zw;
+				uv = uv * texelSize.zw + 0.5;
+				float2 iuv = floor(uv);
+				float2 fuv = frac(uv);
 
-				return lerp(lerp(sample3, sample2, sx), lerp(sample1, sample0, sx), sy);
+				float g0x = g0(fuv.x);
+				float g1x = g1(fuv.x);
+				float h0x = h0(fuv.x);
+				float h1x = h1(fuv.x);
+				float h0y = h0(fuv.y);
+				float h1y = h1(fuv.y);
+				float g0y = g0(fuv.y);
+				float g1y = g1(fuv.y);
+
+				float2 p0 = (float2(iuv.x + h0x, iuv.y + h0y) - 0.5) * texelSize.xy;
+				float2 p1 = (float2(iuv.x + h1x, iuv.y + h0y) - 0.5) * texelSize.xy;
+				float2 p2 = (float2(iuv.x + h0x, iuv.y + h1y) - 0.5) * texelSize.xy;
+				float2 p3 = (float2(iuv.x + h1x, iuv.y + h1y) - 0.5) * texelSize.xy;
+
+				return g0y * (g0x * tex2Dlod(tex, float4(p0, 0, lod)) +
+					g1x * tex2Dlod(tex, float4(p1, 0, lod))) +
+					g1y * (g0x * tex2Dlod(tex, float4(p2, 0, lod)) +
+					g1x * tex2Dlod(tex, float4(p3, 0, lod)));
 			}
 
 			float4 frag(v2f i) : SV_Target
@@ -115,12 +146,15 @@ Shader "Custom/AdaptiveTriangleBlur"
 					float trianglePixelArea = sqrt(Unsigned2DTriangleArea(pixelPos0, pixelPos1, pixelPos2));
 
 					// Return blurred input
-					lodLevel = log2(trianglePixelArea) * 0.75;
+					lodLevel = log2(trianglePixelArea) * 0.666;
 					lodLevel = int(lodLevel);
 				}
+				//lodLevel = 6;
 
 				//return float4(minEdgeLengthPixels.xxx / 1024, 1);
-				float4 blurredSample = tex2DBicubicLod(i.uv, lodLevel);
+				//float4 blurredSample = tex2DBicubicLod(i.uv, lodLevel);
+				//blurredSample = tex2Dlod(_MainTex, float4(i.uv, 0, lodLevel));
+				float4 blurredSample = texture_bicubic(_MainTex, i.uv, _MainTex_TexelSize, lodLevel);
 				return float4(blurredSample.rgb, 1);
 			}
 			ENDCG
