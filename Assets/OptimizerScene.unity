@@ -160,19 +160,20 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 2
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: lighthouse
+  target3DCOLMAPFolder: garden
   colmapRescaler: 1
   colmapUseMasking: 0
-  optimPrimitive: 1
-  primitiveCount: 1000000
+  optimPrimitive: 0
+  useAlternateTrianglePosition: 0
+  primitiveCount: 10000
   primitiveInitSize: 0.05
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 1
+  initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
-  colmapOnePrimitivePerInitPoint: 1
+  colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 9999
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
@@ -181,7 +182,7 @@ MonoBehaviour:
   maxFragmentsPerPixel: 8
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 2, y: 2}
-  optimizeEnvMap: 1
+  optimizeEnvMap: 0
   envMapResolution: 64
   displayAdaptiveTriangleBlurring: 0
   optimAdaptiveTriangleBlurring: 0
@@ -199,7 +200,7 @@ MonoBehaviour:
   lossMode: 1
   gradientsWarmupSteps: 16
   optimSupersampling: 1
-  doAlphaLoss: 0
+  doAlphaLoss: 1
   doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
@@ -210,14 +211,14 @@ MonoBehaviour:
   beta1: 0.9
   beta2: 0.999
   learningRatePosition: 0.001
-  learningRateColor: 0.005
+  learningRateColor: 0.01
   learningRateAlpha: 0
-  learningRateEnvMap: 0.005
+  learningRateEnvMap: 0.01
   structuralLossWeight: 1
   doPrimitiveResampling: 1
-  resamplingInterval: 25
+  resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8
-  minPrimitiveWorldArea: 0.001
+  minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
   totalElapsedSeconds: 0
   internalOptimResolution: {x: 1, y: 1}
@@ -656,8 +657,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.0124491975, y: -0.9874824, z: 0.10518277, w: -0.11687622}
-  m_LocalPosition: {x: -0.7019244, y: 0.6478969, z: 2.923726}
+  m_LocalRotation: {x: 0.096883155, y: -0.24702246, z: -0.024830315, w: -0.9638346}
+  m_LocalPosition: {x: -1.2020473, y: -1.682445, z: -2.580029}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -16,6 +16,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty colmapRescaler;
 	SerializedProperty colmapUseMasking;
 	SerializedProperty optimPrimitive;
+	SerializedProperty useAlternateTrianglePosition;
 	SerializedProperty primitiveCount;
 	SerializedProperty primitiveInitSize;
 	SerializedProperty primitiveInitSeed;
@@ -93,6 +94,7 @@ public class MutationOptimizerEditor : Editor
 		colmapRescaler = serializedObject.FindProperty("colmapRescaler");
 		colmapUseMasking = serializedObject.FindProperty("colmapUseMasking");
 		optimPrimitive = serializedObject.FindProperty("optimPrimitive");
+		useAlternateTrianglePosition = serializedObject.FindProperty("useAlternateTrianglePosition");
 		primitiveCount = serializedObject.FindProperty("primitiveCount");
 		primitiveInitSize = serializedObject.FindProperty("primitiveInitSize");
 		primitiveInitSeed = serializedObject.FindProperty("primitiveInitSeed");
@@ -237,6 +239,7 @@ public class MutationOptimizerEditor : Editor
 			EditorGUILayout.PropertyField(colmapUseMasking);
 		}
 		EditorGUILayout.PropertyField(optimPrimitive);
+		EditorGUILayout.PropertyField(useAlternateTrianglePosition);
 		EditorGUILayout.PropertyField(primitiveInitSeed);
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2)
 		{

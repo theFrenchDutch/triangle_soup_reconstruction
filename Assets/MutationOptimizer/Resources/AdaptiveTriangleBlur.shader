@@ -17,7 +17,9 @@ Shader "Custom/AdaptiveTriangleBlur"
 			#pragma vertex vert
 			#pragma fragment frag
 			#include "UnityCG.cginc"
+			#pragma multi_compile NORMAL_POSITIONS ALTERNATE_POSITIONS
 			#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+			#pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 			#pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
 			#include "OptimizerPrimitives.hlsl"
 

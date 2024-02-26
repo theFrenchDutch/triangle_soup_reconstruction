@@ -19,7 +19,9 @@ Shader "Custom/TrianglePrimitiveRaster"
 			#pragma vertex Vertex
 			#pragma fragment Fragment
 			#include "UnityCG.cginc"
+			#pragma multi_compile NORMAL_POSITIONS ALTERNATE_POSITIONS
 			#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+			#pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 			#pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
 			#include "OptimizerPrimitives.hlsl"
 
@@ -48,6 +50,9 @@ Shader "Custom/TrianglePrimitiveRaster"
 				// Retrieve vertex attributes
 				PrimitiveData primitiveData = _PrimitiveBuffer[instanceID];
 				float3 worldPos = primitiveData.positions[vertexID];
+				#ifdef ALTERNATE_POSITIONS
+					worldPos += primitiveData.basePosition;
+				#endif
 
 				// Camera projection
 				float4 clipPos = mul(_CameraMatrixVP, float4(worldPos, 1));

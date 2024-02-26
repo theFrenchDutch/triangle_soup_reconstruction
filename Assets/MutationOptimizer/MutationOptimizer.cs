@@ -124,6 +124,7 @@ public class MutationOptimizer : MonoBehaviour
 	public float colmapRescaler = 1.0f;
 	public bool colmapUseMasking = false;
 	public PrimitiveType optimPrimitive = PrimitiveType.TrianglesSolidUnlit;
+	public bool useAlternateTrianglePosition = false;
 	public int primitiveCount = 1;
 	public float primitiveInitSize = 1.0f;
 	public int primitiveInitSeed = -1;
@@ -996,6 +997,8 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetInt("_CurrentPairingOffset", (int)(UnityEngine.Random.value * primitiveCount));
 		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_PrimitiveBuffer", primitiveBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_PrimitiveKillCounters", primitiveKillCounters);
 		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_AppendValidPrimitiveIDs", appendValidIDsBuffer);
 		mutationOptimizerCS.SetBuffer(kernelListValidAndInvalidPrimitiveIDs, "_AppendInvalidPrimitiveIDs", appendInvalidIDsBuffer);
@@ -1468,9 +1471,15 @@ public class MutationOptimizer : MonoBehaviour
 
 		if (checkOptimPrimitive == true)
 		{
+			bool NORMAL_POSITIONS = keywords.Contains("NORMAL_POSITIONS");
+			bool ALTERNATE_POSITIONS = keywords.Contains("ALTERNATE_POSITIONS");
 			bool TRIANGLE_SOLID = keywords.Contains("TRIANGLE_SOLID");
 			bool TRIANGLE_GRADIENT = keywords.Contains("TRIANGLE_GRADIENT");
 			bool TRIANGLE_GAUSSIAN = keywords.Contains("TRIANGLE_GAUSSIAN");
+			if (NORMAL_POSITIONS != !useAlternateTrianglePosition)
+				return false;
+			if (ALTERNATE_POSITIONS != useAlternateTrianglePosition)
+				return false;
 			if (TRIANGLE_SOLID != (optimPrimitive == PrimitiveType.TrianglesSolidUnlit))
 				return false;
 			if (TRIANGLE_GRADIENT != (optimPrimitive == PrimitiveType.TrianglesGradientUnlit))
@@ -1515,9 +1524,15 @@ public class MutationOptimizer : MonoBehaviour
 	{
 		if (doOptimPrimitive == true)
 		{
+			computeShader.DisableKeyword("NORMAL_POSITIONS");
+			computeShader.DisableKeyword("ALTERNATE_POSITIONS");
 			computeShader.DisableKeyword("TRIANGLE_SOLID");
 			computeShader.DisableKeyword("TRIANGLE_GRADIENT");
 			computeShader.DisableKeyword("TRIANGLE_GAUSSIAN");
+			if (useAlternateTrianglePosition == false)
+				computeShader.EnableKeyword("NORMAL_POSITIONS");
+			if (useAlternateTrianglePosition == true)
+				computeShader.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				computeShader.EnableKeyword("TRIANGLE_SOLID");
 			else if (optimPrimitive == PrimitiveType.TrianglesGradientUnlit)
@@ -1563,9 +1578,15 @@ public class MutationOptimizer : MonoBehaviour
 
 		if (doOptimPrimitive == true)
 		{
+			material.DisableKeyword("NORMAL_POSITIONS");
+			material.DisableKeyword("ALTERNATE_POSITIONS");
 			material.DisableKeyword("TRIANGLE_SOLID");
 			material.DisableKeyword("TRIANGLE_GRADIENT");
 			material.DisableKeyword("TRIANGLE_GAUSSIAN");
+			if (useAlternateTrianglePosition == false)
+				material.EnableKeyword("NORMAL_POSITIONS");
+			if (useAlternateTrianglePosition == true)
+				material.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				material.EnableKeyword("TRIANGLE_SOLID");
 			else if (optimPrimitive == PrimitiveType.TrianglesGradientUnlit)
@@ -2175,6 +2196,14 @@ public class MutationOptimizer : MonoBehaviour
 	// ======================= PRIMITIVE INIT =======================
 	public int GetPrimitiveFloatSize(PrimitiveType type)
 	{
+		int positionSize = 9;
+		if (useAlternateTrianglePosition == true)
+			positionSize = 12;
+
+		int alphaSize = 0;
+		if (transparencyMode != TransparencyMode.None)
+			alphaSize = 1;
+
 		int colorSize = 0;
 		if (sphericalHarmonicsMode == SphericalHarmonicsMode.None)
 			colorSize = 3;
@@ -2185,14 +2214,12 @@ public class MutationOptimizer : MonoBehaviour
 		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.FourBands)
 			colorSize = 48;
 
-		int alphaSize = 1;
-
 		if (type == PrimitiveType.TrianglesSolidUnlit)
-			return 9 + colorSize + alphaSize;
+			return positionSize + colorSize + alphaSize;
 		else if (type == PrimitiveType.TrianglesGradientUnlit)
-			return 9 + colorSize * 3 + alphaSize * 3;
+			return positionSize + colorSize * 3 + alphaSize * 3;
 		else if (type == PrimitiveType.TrianglesGaussianUnlit)
-			return 9 + colorSize + alphaSize;
+			return positionSize + colorSize + alphaSize;
 		else
 			return 0;
 	}
@@ -2218,12 +2245,7 @@ public class MutationOptimizer : MonoBehaviour
 		}
 
 		// Init primitive buffer
-		if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
-			InitTriangleSolidPrimitiveBuffer(ref primitiveBuffer[0], positions, initSizes);
-		else if (optimPrimitive == PrimitiveType.TrianglesGradientUnlit)
-			InitTriangleGradientPrimitiveBuffer(ref primitiveBuffer[0], positions, initSizes);
-		else if (optimPrimitive == PrimitiveType.TrianglesGaussianUnlit)
-			InitTriangleGaussianPrimitiveBuffer(ref primitiveBuffer[0], positions, initSizes);
+		InitTrianglePrimitiveBuffer(ref primitiveBuffer[0], positions, initSizes);
 	}
 
 	public void InitPositionsInsideBounds(float3[] positions)
@@ -2293,458 +2315,81 @@ public class MutationOptimizer : MonoBehaviour
 		}
 	}
 
-	public SHColor InitSHColor()
+	public void InitTrianglePrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit, float3[] positions, float[] initSizes)
 	{
-		// Init container
-		SHColor shColor;
-
-		// Init alpha
-		shColor.alpha = 1.0f;
-
-		// Init color
-		Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
-		shColor.sh0 = new float3(randColor.r, randColor.g, randColor.b);
-		//shColor.sh0 = new float3(1.0f, 1.0f, 1.0f);
-		//shColor.sh0 = new float3(0.5f, 0.5f, 0.5f);
-		//shColor.sh0 = new float3(0.0f, 0.0f, 0.0f);
-
-		return shColor;
-	}
-
-	public SHColor2 InitSHColor2()
-	{
-		// Init container
-		SHColor2 shColor;
-
-		// Init alpha
-		shColor.alpha = 1.0f;
-
-		// Init color
-		shColor.sh0 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh1 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh2 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh3 = new float3(0.0f, 0.0f, 0.0f);
-
-		return shColor;
-	}
-
-	public SHColor3 InitSHColor3()
-	{
-		// Init container
-		SHColor3 shColor;
-
-		// Init alpha
-		shColor.alpha = 1.0f;
-
-		// Init color
-		shColor.sh0 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh1 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh2 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh3 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh4 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh5 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh6 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh7 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh8 = new float3(0.0f, 0.0f, 0.0f);
-
-		return shColor;
-	}
-
-	public SHColor4 InitSHColor4()
-	{
-		// Init container
-		SHColor4 shColor;
-
-		// Init alpha
-		shColor.alpha = 1.0f;
-
-		// Init color
-		shColor.sh0 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh1 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh2 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh3 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh4 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh5 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh6 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh7 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh8 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh9 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh10 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh11 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh12 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh13 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh14 = new float3(0.0f, 0.0f, 0.0f);
-		shColor.sh15 = new float3(0.0f, 0.0f, 0.0f);
-
-		return shColor;
-	}
-
-	public void InitTriangleSolidPrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit, float3[] positions, float[] initSizes)
-	{
-		if (sphericalHarmonicsMode == SphericalHarmonicsMode.None)
+		// Init data on CPU
+		int primitiveFloatSize = GetPrimitiveFloatSize(optimPrimitive);
+		float[] randData = new float[primitiveCount * primitiveFloatSize];
+		for (int i = 0; i < primitiveCount; i++)
 		{
-			TriangleSolidPrimitive[] randData = new TriangleSolidPrimitive[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+			// Position
+			float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
+			float3 randPos = positions[i];
+			float3 position0, position1, position2;
+			if (targetMode == TargetMode.Image)
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-				float3 randPos = positions[i];
-				TriangleSolidPrimitive newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor();
-				randData[i] = newTriangle;
+				randPos.z = i / (float)primitiveCount; // Unique Z per triangle
+				position0 = new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+				position1 = new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+				position2 = new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleSolidPrimitive)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.TwoBands)
-		{
-			TriangleSolidPrimitiveSH2[] randData = new TriangleSolidPrimitiveSH2[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+			else
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-				float3 randPos = positions[i];
-				TriangleSolidPrimitiveSH2 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor2();
-				randData[i] = newTriangle;
+				position0 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+				position1 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+				position2 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleSolidPrimitiveSH2)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.ThreeBands)
-		{
-			TriangleSolidPrimitiveSH3[] randData = new TriangleSolidPrimitiveSH3[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+			int offset = 0;
+			if (useAlternateTrianglePosition == true)
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-				float3 randPos = positions[i];
-				TriangleSolidPrimitiveSH3 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor3();
-				randData[i] = newTriangle;
+				randData[i * primitiveFloatSize + offset + 0] = randPos.x; randData[i * primitiveFloatSize + offset + 1] = randPos.y; randData[i * primitiveFloatSize + offset + 2] = randPos.z; offset += 3;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleSolidPrimitiveSH3)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.FourBands)
-		{
-			TriangleSolidPrimitiveSH4[] randData = new TriangleSolidPrimitiveSH4[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+			else
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-				float3 randPos = positions[i];
-				TriangleSolidPrimitiveSH4 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor4();
-				randData[i] = newTriangle;
+				position0 += randPos;
+				position1 += randPos;
+				position2 += randPos;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleSolidPrimitiveSH4)));
-			primitiveBufferToInit.SetData(randData);
-		}
-	}
+			randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; randData[i * primitiveFloatSize + offset + 2] = position0.z; offset += 3;
+			randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; randData[i * primitiveFloatSize + offset + 2] = position1.z; offset += 3;
+			randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; randData[i * primitiveFloatSize + offset + 2] = position2.z; offset += 3;
 
-	public void InitTriangleGradientPrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit, float3[] positions, float[] initSizes)
-	{
-		if (sphericalHarmonicsMode == SphericalHarmonicsMode.None)
-		{
-			TriangleGradientPrimitive[] randData = new TriangleGradientPrimitive[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+			// Alpha
+			if (transparencyMode != TransparencyMode.None)
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGradientPrimitive newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color0 = InitSHColor();
-				newTriangle.color1 = InitSHColor();
-				newTriangle.color2 = InitSHColor();
-				randData[i] = newTriangle;
+				randData[i * primitiveFloatSize + offset + 0] = 1.0f; offset += 1;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGradientPrimitive)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.TwoBands)
-		{
-			TriangleGradientPrimitiveSH2[] randData = new TriangleGradientPrimitiveSH2[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
+
+			// Color
+			if (sphericalHarmonicsMode == SphericalHarmonicsMode.None) // else no need to do anything, all init to zero
 			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGradientPrimitiveSH2 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color0 = InitSHColor2();
-				newTriangle.color1 = InitSHColor2();
-				newTriangle.color2 = InitSHColor2();
-				randData[i] = newTriangle;
+				Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
+				float3 color = new float3(randColor.r, randColor.g, randColor.b);
+				//float3 color = new float3(0.5f, 0.5f, 0.5f);
+				//float3 color = new float3(0.0f, 0.0f, 0.0f);
+				randData[i * primitiveFloatSize + offset + 0] = color.x; randData[i * primitiveFloatSize + offset + 1] = color.y; randData[i * primitiveFloatSize + offset + 2] = color.z; offset += 3;
 			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGradientPrimitiveSH2)));
-			primitiveBufferToInit.SetData(randData);
 		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.ThreeBands)
-		{
-			TriangleGradientPrimitiveSH3[] randData = new TriangleGradientPrimitiveSH3[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
 
-				float3 randPos = positions[i];
-				TriangleGradientPrimitiveSH3 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color0 = InitSHColor3();
-				newTriangle.color1 = InitSHColor3();
-				newTriangle.color2 = InitSHColor3();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGradientPrimitiveSH3)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.FourBands)
-		{
-			TriangleGradientPrimitiveSH4[] randData = new TriangleGradientPrimitiveSH4[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGradientPrimitiveSH4 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color0 = InitSHColor4();
-				newTriangle.color1 = InitSHColor4();
-				newTriangle.color2 = InitSHColor4();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGradientPrimitiveSH4)));
-			primitiveBufferToInit.SetData(randData);
-		}
-	}
-
-	public void InitTriangleGaussianPrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit, float3[] positions, float[] initSizes)
-	{
-		if (sphericalHarmonicsMode == SphericalHarmonicsMode.None)
-		{
-			TriangleGaussianPrimitive[] randData = new TriangleGaussianPrimitive[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGaussianPrimitive newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGaussianPrimitive)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.TwoBands)
-		{
-			TriangleGaussianPrimitiveSH2[] randData = new TriangleGaussianPrimitiveSH2[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGaussianPrimitiveSH2 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor2();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGaussianPrimitiveSH2)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.ThreeBands)
-		{
-			TriangleGaussianPrimitiveSH3[] randData = new TriangleGaussianPrimitiveSH3[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGaussianPrimitiveSH3 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor3();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGaussianPrimitiveSH3)));
-			primitiveBufferToInit.SetData(randData);
-		}
-		else if (sphericalHarmonicsMode == SphericalHarmonicsMode.FourBands)
-		{
-			TriangleGaussianPrimitiveSH4[] randData = new TriangleGaussianPrimitiveSH4[primitiveCount];
-			for (int i = 0; i < primitiveCount; i++)
-			{
-				float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
-
-				float3 randPos = positions[i];
-				TriangleGaussianPrimitiveSH4 newTriangle;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					newTriangle.position0 = randPos + new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position1 = randPos + new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					newTriangle.position2 = randPos + new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				else
-				{
-					newTriangle.position0 = randPos;
-					newTriangle.position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-					newTriangle.position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				}
-				newTriangle.color = InitSHColor4();
-				randData[i] = newTriangle;
-			}
-			primitiveBufferToInit = new ComputeBuffer(primitiveCount, System.Runtime.InteropServices.Marshal.SizeOf(typeof(TriangleGaussianPrimitiveSH4)));
-			primitiveBufferToInit.SetData(randData);
-		}
+		// Upload data to GPU
+		primitiveBufferToInit = new ComputeBuffer(primitiveCount, sizeof(float) * primitiveFloatSize);
+		primitiveBufferToInit.SetData(randData);
 	}
 
 	public void InitEnvMapPrimitiveBuffer(ref ComputeBuffer primitiveBufferToInit)
 	{
-		EnvMapTexel[] randData = new EnvMapTexel[envMapResolution * envMapResolution];
+		float3[] randData = new float3[envMapResolution * envMapResolution];
 		for (int i = 0; i < envMapResolution * envMapResolution; i++)
 		{
-			EnvMapTexel newTexel;
+			float3 newTexel;
 			Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
-			newTexel.color = new float3(randColor.r, randColor.g, randColor.b);
+			newTexel = new float3(randColor.r, randColor.g, randColor.b);
 			//newTexel.color = new float3(1.0f, 1.0f, 1.0f);
-			newTexel.color = new float3(0.5f, 0.5f, 0.5f);
+			newTexel = new float3(0.5f, 0.5f, 0.5f);
 			//newTexel.color = new float3(0.0f, 0.0f, 0.0f);
 			randData[i] = newTexel;
 		}
-		primitiveBufferToInit = new ComputeBuffer(envMapResolution * envMapResolution, System.Runtime.InteropServices.Marshal.SizeOf(typeof(EnvMapTexel)));
+		primitiveBufferToInit = new ComputeBuffer(envMapResolution * envMapResolution, System.Runtime.InteropServices.Marshal.SizeOf(typeof(float3)));
 		primitiveBufferToInit.SetData(randData);
 	}
 
@@ -2805,135 +2450,4 @@ public class MutationOptimizer : MonoBehaviour
 		GeometryAndAppearance,
 		Full
 	}
-
-
-
-
-	// ======================= TYPES =======================
-	public struct EnvMapTexel
-	{
-		public float3 color;
-	};
-
-	public struct SHColor
-	{
-		public float alpha;
-		public float3 sh0;
-	};
-	public struct SHColor2
-	{
-		public float alpha;
-		public float3 sh0;
-		public float3 sh1, sh2, sh3;
-	};
-	public struct SHColor3
-	{
-		public float alpha;
-		public float3 sh0;
-		public float3 sh1, sh2, sh3;
-		public float3 sh4, sh5, sh6, sh7, sh8;
-	};
-	public struct SHColor4
-	{
-		public float alpha;
-		public float3 sh0;
-		public float3 sh1, sh2, sh3;
-		public float3 sh4, sh5, sh6, sh7, sh8;
-		public float3 sh9, sh10, sh11, sh12, sh13, sh14, sh15;
-	};
-
-	struct TriangleSolidPrimitive
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor color;
-	};
-	struct TriangleSolidPrimitiveSH2
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor2 color;
-	};
-	struct TriangleSolidPrimitiveSH3
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor3 color;
-	};
-	struct TriangleSolidPrimitiveSH4
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor4 color;
-	};
-
-	struct TriangleGradientPrimitive
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor color0;
-		public SHColor color1;
-		public SHColor color2;
-	};
-	struct TriangleGradientPrimitiveSH2
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor2 color0;
-		public SHColor2 color1;
-		public SHColor2 color2;
-	};
-	struct TriangleGradientPrimitiveSH3
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor3 color0;
-		public SHColor3 color1;
-		public SHColor3 color2;
-	};
-	struct TriangleGradientPrimitiveSH4
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor4 color0;
-		public SHColor4 color1;
-		public SHColor4 color2;
-	};
-
-	struct TriangleGaussianPrimitive
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor color;
-	};
-	struct TriangleGaussianPrimitiveSH2
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor2 color;
-	};
-	struct TriangleGaussianPrimitiveSH3
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor3 color;
-	};
-	struct TriangleGaussianPrimitiveSH4
-	{
-		public float3 position0;
-		public float3 position1;
-		public float3 position2;
-		public SHColor4 color;
-	};
 }

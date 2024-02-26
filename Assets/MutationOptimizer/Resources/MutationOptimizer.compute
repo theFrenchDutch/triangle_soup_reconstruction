@@ -1,4 +1,5 @@
-﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+﻿#pragma multi_compile NORMAL_POSITIONS ALTERNATE_POSITIONS
+#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
 #pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 #pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
 #include "OptimizerPrimitives.hlsl"
@@ -825,6 +826,12 @@ void ListValidAndInvalidPrimitiveIDs(uint3 id : SV_DispatchThreadID)
 	if (rand < 0.1)
 		isValid = false;*/
 
+	// Do wrongly placed removal test
+	/*PrimitiveData gradients = _PrimitiveGradientsMoments2[primitiveID];
+	float colorGradientMagnitude = gradients.color.sh0.r + gradients.color.sh0.g + gradients.color.sh0.b;
+	if (colorGradientMagnitude > 2000 && _PrimitiveOptimStepCounter[primitiveID] > 100)
+		isValid = false;*/
+
 	// Take into account visibility
 //#ifdef OPAQUE_RENDER
 	isValid = isValid && _PrimitiveKillCounters[primitiveID] > 0;
@@ -880,22 +887,12 @@ void InitBitonicSortValidPrimitives(uint threadID : SV_DispatchThreadID)
 	if (threadID < validCount)
 	{
 		sort.x = _ReadValidPrimitiveIDs[threadID];
-#ifndef GAUSSIAN_SPLAT
 		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
 		sort.y = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]) * 65536;
 		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
 		float posGradientMagnitude = length(primitiveGradients.positions[0] + primitiveGradients.positions[1] + primitiveGradients.positions[2]);
 		sort.y = posGradientMagnitude * 65536;*/
 		//sort.y = WangHash((_CurrentOptimStep * _PrimitiveCount) + sort.x);
-#else
-		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
-		float maxScale = max(primitiveData.scale.x, max(primitiveData.scale.y, primitiveData.scale.z));
-		float volume = primitiveData.scale.x * primitiveData.scale.y * primitiveData.scale.z;
-		sort.y = maxScale * 65536;
-		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
-		float posGradientMagnitude = length(primitiveGradients.position);
-		sort.y = posGradientMagnitude * 65536;*/
-#endif
 	}
 	else
 	{
@@ -980,6 +977,9 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	_PrimitiveKillCounters[primitiveID1] = _FramesUnseenBeforeKill;
 
 	// Handle positions
+#ifdef ALTERNATE_POSITIONS
+	_PrimitiveBuffer[primitiveID0].basePosition = primitive1.basePosition;
+#endif
 	float3 newVertex = (primitive1.positions[idLeft] + primitive1.positions[idRight]) / 2.0;
 	_PrimitiveBuffer[primitiveID0].positions[0] = primitive1.positions[idBase];
 	_PrimitiveBuffer[primitiveID0].positions[1] = primitive1.positions[idLeft];
@@ -1008,10 +1008,7 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	}
 
 	// Handle color
-#ifdef TRIANGLE_SOLID
-	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
-	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
-#elif TRIANGLE_GRADIENT
+#ifdef TRIANGLE_GRADIENT
 	//Color newColor = (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
 	_PrimitiveBuffer[primitiveID0].colors[0] = primitive1.colors[idBase];
 	_PrimitiveBuffer[primitiveID0].colors[1] = primitive1.colors[idLeft];
@@ -1019,7 +1016,9 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	_PrimitiveBuffer[primitiveID1].colors[0] = primitive1.colors[idBase];
 	_PrimitiveBuffer[primitiveID1].colors[1] = primitive1.colors[idLeft];
 	_PrimitiveBuffer[primitiveID1].colors[2] = primitive1.colors[idRight];
-#elif TRIANGLE_GAUSSIAN
+	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
+	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
+#else
 	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
 	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
 #endif

@@ -242,7 +242,15 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 
 
 // ========================= PRIMITIVE SIZE =========================
+#define POSITION_SIZE 9
+#ifdef ALTERNATE_POSITIONS
+#define POSITION_SIZE 12
+#endif
+
+#define ALPHA_SIZE 0
+#ifndef OPAQUE_RENDER
 #define ALPHA_SIZE 1
+#endif
 
 #define COLOR_SIZE 3
 #ifdef SPHERICAL_HARMONICS_2
@@ -257,13 +265,13 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 
 #define PRIMITIVE_SIZE COLOR_SIZE + ALPHA_SIZE
 #ifdef TRIANGLE_SOLID
-#define PRIMITIVE_SIZE 9 + COLOR_SIZE + ALPHA_SIZE
+#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE + ALPHA_SIZE
 #endif
 #ifdef TRIANGLE_GRADIENT
-#define PRIMITIVE_SIZE 9 + COLOR_SIZE * 3 + ALPHA_SIZE * 3
+#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE * 3 + ALPHA_SIZE * 3
 #endif
 #ifdef TRIANGLE_GAUSSIAN
-#define PRIMITIVE_SIZE 9 + COLOR_SIZE + ALPHA_SIZE
+#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE + ALPHA_SIZE
 #endif
 
 
@@ -293,7 +301,9 @@ static float SH_C3[7] =
 
 struct Color
 {
+#ifndef OPAQUE_RENDER
 	float alpha;
+#endif
 	float3 sh0;
 #if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
 	float3 sh1, sh2, sh3;
@@ -314,7 +324,9 @@ Color ZeroInitColor()
 {
 	Color color;
 
+#ifndef OPAQUE_RENDER
 	color.alpha = 0;
+#endif
 	color.sh0 = float3(0, 0, 0);
 #if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
 	color.sh1 = float3(0, 0, 0);
@@ -345,7 +357,9 @@ Color GetFloatArrayAsColor(float asArray[PRIMITIVE_SIZE], inout int offset)
 {
 	Color color;
 
+#ifndef OPAQUE_RENDER
 	color.alpha = asArray[offset++];
+#endif
 	color.sh0 = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
 #if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
 	color.sh1 = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
@@ -374,7 +388,9 @@ Color GetFloatArrayAsColor(float asArray[PRIMITIVE_SIZE], inout int offset)
 
 void GetColorAsFloatArray(Color color, inout float asArray[PRIMITIVE_SIZE], inout int offset)
 {
+#ifndef OPAQUE_RENDER
 	asArray[offset++] = color.alpha;
+#endif
 	asArray[offset++] = color.sh0.r; asArray[offset++] = color.sh0.g; asArray[offset++] = color.sh0.b;
 #if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
 	asArray[offset++] = color.sh1.r; asArray[offset++] = color.sh1.g; asArray[offset++] = color.sh1.b;
@@ -401,7 +417,9 @@ void GetColorAsFloatArray(Color color, inout float asArray[PRIMITIVE_SIZE], inou
 
 void GetColorLearningRatesFloatArray(inout float asArray[PRIMITIVE_SIZE], inout int offset)
 {
+#ifndef OPAQUE_RENDER
 	asArray[offset++] = _LearningRateAlpha;
+#endif
 	asArray[offset++] = _LearningRateColor; asArray[offset++] = _LearningRateColor; asArray[offset++] = _LearningRateColor;
 
 #if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
@@ -435,7 +453,11 @@ float4 FetchRGBAColor(Color colorData, float3 dir = float3(0, 0, 1))
 	float4 colorRGBA;
 
 	// Alpha
+#ifndef OPAQUE_RENDER
 	colorRGBA.a = colorData.alpha;
+#else
+	colorRGBA.a = 1.0;
+#endif
 
 	// Simple color
 #if defined(SINGLE_COLOR)
@@ -481,7 +503,9 @@ float4 FetchRGBAColor(Color colorData, float3 dir = float3(0, 0, 1))
 
 Color PostProcessColor(Color colorData)
 {
+#ifndef OPAQUE_RENDER
 	colorData.alpha = clamp(colorData.alpha, 0.0, 1.0);
+#endif
 
 #ifndef SPHERICAL_HARMONICS_2
 	colorData.sh0 = clamp(colorData.sh0, 0.0, 1.0);
@@ -497,6 +521,9 @@ Color PostProcessColor(Color colorData)
 #ifdef TRIANGLE_SOLID
 struct PrimitiveData
 {
+#ifdef ALTERNATE_POSITIONS
+	float3 basePosition;
+#endif
 	float3 positions[3];
 	Color color;
 };
@@ -506,6 +533,9 @@ float _LearningRatePosition;
 PrimitiveData ZeroInitPrimitiveData()
 {
 	PrimitiveData primitiveData;
+#ifdef ALTERNATE_POSITIONS
+	primitiveData.basePosition = float3(0, 0, 0);
+#endif
 	primitiveData.positions[0] = float3(0, 0, 0);
 	primitiveData.positions[1] = float3(0, 0, 0);
 	primitiveData.positions[2] = float3(0, 0, 0);
@@ -516,44 +546,66 @@ PrimitiveData ZeroInitPrimitiveData()
 PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 {
 	PrimitiveData primitiveData;
-	primitiveData.positions[0] = float3(asArray[0], asArray[1], asArray[2]);
-	primitiveData.positions[1] = float3(asArray[3], asArray[4], asArray[5]);
-	primitiveData.positions[2] = float3(asArray[6], asArray[7], asArray[8]);
-	int offset = 9;
+	int offset = 0;
+#ifdef ALTERNATE_POSITIONS
+	primitiveData.basePosition = float3(asArray[0], asArray[1], asArray[2]);
+	offset += 3;
+#endif
+	primitiveData.positions[0] = float3(asArray[offset + 0], asArray[offset + 1], asArray[offset + 2]);
+	primitiveData.positions[1] = float3(asArray[offset + 3], asArray[offset + 4], asArray[offset + 5]);
+	primitiveData.positions[2] = float3(asArray[offset + 6], asArray[offset + 7], asArray[offset + 8]);
+	offset += 9;
 	primitiveData.color = GetFloatArrayAsColor(asArray, offset);
 	return primitiveData;
 }
 
 void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = primitiveData.positions[0].x;
-	asArray[1] = primitiveData.positions[0].y;
-	asArray[2] = primitiveData.positions[0].z;
+	int offset = 0;
+#ifdef ALTERNATE_POSITIONS
+	asArray[offset + 0] = primitiveData.basePosition.x;
+	asArray[offset + 1] = primitiveData.basePosition.y;
+	asArray[offset + 2] = primitiveData.basePosition.z;
+	offset += 3;
+#endif
 
-	asArray[3] = primitiveData.positions[1].x;
-	asArray[4] = primitiveData.positions[1].y;
-	asArray[5] = primitiveData.positions[1].z;
+	asArray[offset + 0] = primitiveData.positions[0].x;
+	asArray[offset + 1] = primitiveData.positions[0].y;
+	asArray[offset + 2] = primitiveData.positions[0].z;
 
-	asArray[6] = primitiveData.positions[2].x;
-	asArray[7] = primitiveData.positions[2].y;
-	asArray[8] = primitiveData.positions[2].z;
+	asArray[offset + 3] = primitiveData.positions[1].x;
+	asArray[offset + 4] = primitiveData.positions[1].y;
+	asArray[offset + 5] = primitiveData.positions[1].z;
 
-	int offset = 9;
+	asArray[offset + 6] = primitiveData.positions[2].x;
+	asArray[offset + 7] = primitiveData.positions[2].y;
+	asArray[offset + 8] = primitiveData.positions[2].z;
+
+	offset += 9;
 	GetColorAsFloatArray(primitiveData.color, asArray, offset);
 }
 
 void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = _LearningRatePosition;
-	asArray[1] = _LearningRatePosition;
-	asArray[2] = _LearningRatePosition;
-	asArray[3] = _LearningRatePosition;
-	asArray[4] = _LearningRatePosition;
-	asArray[5] = _LearningRatePosition;
-	asArray[6] = _LearningRatePosition;
-	asArray[7] = _LearningRatePosition;
-	asArray[8] = _LearningRatePosition;
-	int offset = 9;
+	int offset = 0;
+	float lrPositionToUse = _LearningRatePosition;
+#ifdef ALTERNATE_POSITIONS
+	asArray[offset + 0] = _LearningRatePosition;
+	asArray[offset + 1] = _LearningRatePosition;
+	asArray[offset + 2] = _LearningRatePosition;
+	offset += 3;
+	lrPositionToUse /= 2.0;
+#endif
+	asArray[offset + 0] = lrPositionToUse;
+	asArray[offset + 1] = lrPositionToUse;
+	asArray[offset + 2] = lrPositionToUse;
+	asArray[offset + 3] = lrPositionToUse;
+	asArray[offset + 4] = lrPositionToUse;
+	asArray[offset + 5] = lrPositionToUse;
+	asArray[offset + 6] = lrPositionToUse;
+	asArray[offset + 7] = lrPositionToUse;
+	asArray[offset + 8] = lrPositionToUse;
+	offset += 9;
 	GetColorLearningRatesFloatArray(asArray, offset);
 }
 
@@ -595,6 +647,9 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 #ifdef TRIANGLE_GRADIENT
 struct PrimitiveData
 {
+#ifdef ALTERNATE_POSITIONS
+	float3 basePosition;
+#endif
 	float3 positions[3];
 	Color colors[3];
 };
@@ -706,6 +761,9 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 #ifdef TRIANGLE_GAUSSIAN
 struct PrimitiveData
 {
+#ifdef ALTERNATE_POSITIONS
+	float3 basePosition;
+#endif
 	float3 positions[3];
 	Color color;
 };
