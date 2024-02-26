@@ -49,10 +49,7 @@ Shader "Custom/TrianglePrimitiveRaster"
 			{
 				// Retrieve vertex attributes
 				PrimitiveData primitiveData = _PrimitiveBuffer[instanceID];
-				float3 worldPos = primitiveData.positions[vertexID];
-				#ifdef ALTERNATE_POSITIONS
-					worldPos += primitiveData.basePosition;
-				#endif
+				float3 worldPos = GetWorldVertex(primitiveData.geometry, vertexID);
 
 				// Camera projection
 				float4 clipPos = mul(_CameraMatrixVP, float4(worldPos, 1));

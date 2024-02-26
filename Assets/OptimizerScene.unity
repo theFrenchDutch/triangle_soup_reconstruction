@@ -160,15 +160,15 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 1
+  targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: garden
+  target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
   useAlternateTrianglePosition: 0
-  primitiveCount: 10000
+  primitiveCount: 16000
   primitiveInitSize: 0.05
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
@@ -211,6 +211,8 @@ MonoBehaviour:
   beta1: 0.9
   beta2: 0.999
   learningRatePosition: 0.001
+  learningRateRotation: 0.01
+  learningRateOffsets: 0.0001
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01

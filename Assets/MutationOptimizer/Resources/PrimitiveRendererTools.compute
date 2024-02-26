@@ -243,7 +243,7 @@ void InitBitonicSortPrimitives(uint threadID : SV_DispatchThreadID)
 
 	// Init ID and depth
 	_SortedPrimitiveIDs[threadID.x] = threadID.x;
-	float3 gaussianPos = GetPrimitiveWorldDepthSortPosition(_PrimitiveBuffer[threadID.x]);
+	float3 gaussianPos = GetPrimitiveWorldDepthSortPosition(_PrimitiveBuffer[threadID.x].geometry);
 	float z = mul(_SortMatrixMV, float4(gaussianPos.xyz, 1)).z;
 	_SortedPrimitiveDistances[threadID.x] = FloatToSortableUint(z);
 }

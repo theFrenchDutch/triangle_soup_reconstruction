@@ -136,11 +136,11 @@ Shader "Custom/AdaptiveTriangleBlur"
 				if (primitiveID < _PrimitiveCount)
 				{
 					// Compute filter size based on shortest triangle edge length in screen space
-					float4 temp = mul(_CameraMatrixVP, float4(primitiveData.positions[0], 1));
+					float4 temp = mul(_CameraMatrixVP, float4(GetWorldVertex(primitiveData.geometry, 0), 1));
 					float2 pixelPos0 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
-					temp = mul(_CameraMatrixVP, float4(primitiveData.positions[1], 1));
+					temp = mul(_CameraMatrixVP, float4(GetWorldVertex(primitiveData.geometry, 1), 1));
 					float2 pixelPos1 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
-					temp = mul(_CameraMatrixVP, float4(primitiveData.positions[2], 1));
+					temp = mul(_CameraMatrixVP, float4(GetWorldVertex(primitiveData.geometry, 2), 1));
 					float2 pixelPos2 = (temp.xy / temp.w * 0.5 + 0.5) * _MainTex_TexelSize.zw;
 					float minEdgeLengthPixels = min(length(pixelPos0 - pixelPos1), min(length(pixelPos1 - pixelPos2), length(pixelPos2 - pixelPos0)));
 					float maxEdgeLengthPixels = max(length(pixelPos0 - pixelPos1), max(length(pixelPos1 - pixelPos2), length(pixelPos2 - pixelPos0)));

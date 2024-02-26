@@ -63,6 +63,8 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty beta1;
 	SerializedProperty beta2;
 	SerializedProperty learningRatePosition;
+	SerializedProperty learningRateRotation;
+	SerializedProperty learningRateOffsets;
 	SerializedProperty learningRateColor;
 	SerializedProperty learningRateAlpha;
 	SerializedProperty learningRateEnvMap;
@@ -141,6 +143,8 @@ public class MutationOptimizerEditor : Editor
 		beta1 = serializedObject.FindProperty("beta1");
 		beta2 = serializedObject.FindProperty("beta2");
 		learningRatePosition = serializedObject.FindProperty("learningRatePosition");
+		learningRateRotation = serializedObject.FindProperty("learningRateRotation");
+		learningRateOffsets = serializedObject.FindProperty("learningRateOffsets");
 		learningRateColor = serializedObject.FindProperty("learningRateColor");
 		learningRateAlpha = serializedObject.FindProperty("learningRateAlpha");
 		learningRateEnvMap = serializedObject.FindProperty("learningRateEnvMap");
@@ -329,8 +333,12 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(globalLearningRate);
 		EditorGUILayout.PropertyField(beta1);
 		EditorGUILayout.PropertyField(beta2);
-		if (optimPrimitive.enumValueIndex != 3 && optimPrimitive.enumValueIndex != 5)
-			EditorGUILayout.PropertyField(learningRatePosition);
+		EditorGUILayout.PropertyField(learningRatePosition);
+		if (useAlternateTrianglePosition.boolValue == true)
+		{
+			EditorGUILayout.PropertyField(learningRateRotation);
+			EditorGUILayout.PropertyField(learningRateOffsets);
+		}
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
 			EditorGUILayout.PropertyField(learningRateAlpha);

@@ -329,7 +329,7 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 	PrimitiveData primitiveData = _PrimitiveBuffer[threadID];
 
 	// Compute world space pixel size at primitive pos for current view point
-	float3 centerPos = (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0;
+	float3 centerPos = GetPrimitiveWorldDepthSortPosition(primitiveData.geometry);
 	float d = length(centerPos - _WorldSpaceCameraPos);
 	float screenSize = 2.0 * tan(_CameraFovVRad / 2.0) * d;
 	float pixelSize = screenSize / (float)_OutputHeight;
@@ -349,7 +349,7 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 		randomMutation *= _IsAntitheticMutation > 0.5 ? -1.0 : 1.0;
 
 		// Custom mutation magnitudes
-		if (learningRatesFloats[i] == _LearningRatePosition)
+		if (learningRatesFloats[i] == _LearningRatePosition || learningRatesFloats[i] == _LearningRateOffsets)
 			randomMutation *= pixelSize;
 		else
 			randomMutation *= learningRatesFloats[i];
@@ -414,9 +414,17 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 	if (primitiveID >= _PrimitiveCount || seenPrimitiveID == avoidPrimitiveID)
 		return;
 	PrimitiveData current = _PrimitiveBuffer[primitiveID];
+	float3 currentPositions[3];
+	currentPositions[0] = GetWorldVertex(current.geometry, 0);
+	currentPositions[1] = GetWorldVertex(current.geometry, 1);
+	currentPositions[2] = GetWorldVertex(current.geometry, 2);
 	PrimitiveData currentMutated = _PrimitiveBufferMutated[primitiveID];
-	float currentAvgSize = (length(current.positions[0] - current.positions[1]) + length(current.positions[1] - current.positions[2]) + length(current.positions[2] - current.positions[0])) / 3.0;
-	float3 currentAvgPos = (current.positions[0] + current.positions[1] + current.positions[1]) / 3.0;
+	float3 currentMutatedPositions[3];
+	currentMutatedPositions[0] = GetWorldVertex(currentMutated.geometry, 0);
+	currentMutatedPositions[1] = GetWorldVertex(currentMutated.geometry, 1);
+	currentMutatedPositions[2] = GetWorldVertex(currentMutated.geometry, 2);
+	float currentAvgSize = (length(currentPositions[0] - currentPositions[1]) + length(currentPositions[1] - currentPositions[2]) + length(currentPositions[2] - currentPositions[0])) / 3.0;
+	float3 currentAvgPos = (currentPositions[0] + currentPositions[1] + currentPositions[1]) / 3.0;
 
 	// Find closest edge pairing
 	int closestNeighbour = -1;
@@ -437,8 +445,12 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			if (otherPrimitiveID >= _PrimitiveCount || otherPrimitiveID == primitiveID)
 				continue;
 			PrimitiveData other = _PrimitiveBuffer[otherPrimitiveID];
-			float otherAvgSize = (length(other.positions[0] - other.positions[1]) + length(other.positions[1] - other.positions[2]) + length(other.positions[2] - other.positions[0])) / 3.0;
-			float3 otherAvgPos = (other.positions[0] + other.positions[1] + other.positions[1]) / 3.0;
+			float3 otherPositions[3];
+			otherPositions[0] = GetWorldVertex(other.geometry, 0);
+			otherPositions[1] = GetWorldVertex(other.geometry, 1);
+			otherPositions[2] = GetWorldVertex(other.geometry, 2);
+			float otherAvgSize = (length(otherPositions[0] - otherPositions[1]) + length(otherPositions[1] - otherPositions[2]) + length(otherPositions[2] - otherPositions[0])) / 3.0;
+			float3 otherAvgPos = (otherPositions[0] + otherPositions[1] + otherPositions[1]) / 3.0;
 			//if (length(otherAvgPos - currentAvgPos) > currentAvgSize * 1)
 			//	continue;
 
@@ -448,7 +460,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			{
 				for (int j = 0; j < 3; j++)
 				{
-					float dist = length(current.positions[i] - other.positions[j]);
+					float dist = length(currentPositions[i] - otherPositions[j]);
 					if (dist < currentClosestPair0.z)
 					{
 						currentClosestPair0 = float3(i, j, dist);
@@ -466,7 +478,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 				{
 					if (j == currentClosestPair0.y)
 						continue;
-					float dist = length(current.positions[i] - other.positions[j]);
+					float dist = length(currentPositions[i] - otherPositions[j]);
 					if (dist < currentClosestPair1.z)
 					{
 						currentClosestPair1 = float3(i, j, dist);
@@ -488,27 +500,31 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 
 	// Edge pairing distances
 	PrimitiveData other = _PrimitiveBuffer[closestNeighbour];
+	float3 otherPositions[3];
+	otherPositions[0] = GetWorldVertex(other.geometry, 0);
+	otherPositions[1] = GetWorldVertex(other.geometry, 1);
+	otherPositions[2] = GetWorldVertex(other.geometry, 2);
 	float length0Minus, length0Plus; // Vertex pairing 0
 	{
 		int i = closestPair0.x;
 		int j = closestPair0.y;
-		float3 mutation = currentMutated.positions[i] - current.positions[i];
-		float3 vertexPlus = current.positions[i] + mutation;
-		float3 vertexMinus = current.positions[i] - mutation;
-		float3 otherVertex = other.positions[j];
-		length0Minus = length(other.positions[j] - vertexMinus);
-		length0Plus = length(other.positions[j] - vertexPlus);
+		float3 mutation = currentMutatedPositions[i] - currentPositions[i];
+		float3 vertexPlus = currentPositions[i] + mutation;
+		float3 vertexMinus = currentPositions[i] - mutation;
+		float3 otherVertex = otherPositions[j];
+		length0Minus = length(otherPositions[j] - vertexMinus);
+		length0Plus = length(otherPositions[j] - vertexPlus);
 	}
 	float length1Minus, length1Plus; // Vertex pairing 1
 	{
 		int i = closestPair1.x;
 		int j = closestPair1.y;
-		float3 mutation = currentMutated.positions[i] - current.positions[i];
-		float3 vertexPlus = current.positions[i] + mutation;
-		float3 vertexMinus = current.positions[i] - mutation;
-		float3 otherVertex = other.positions[j];
-		length1Minus = length(other.positions[j] - vertexMinus);
-		length1Plus = length(other.positions[j] - vertexPlus);
+		float3 mutation = currentMutatedPositions[i] - currentPositions[i];
+		float3 vertexPlus = currentPositions[i] + mutation;
+		float3 vertexMinus = currentPositions[i] - mutation;
+		float3 otherVertex = otherPositions[j];
+		length1Minus = length(otherPositions[j] - vertexMinus);
+		length1Plus = length(otherPositions[j] - vertexPlus);
 	}
 
 	// Attract closest pairs to form an edge
@@ -528,14 +544,14 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 	{
 		int i = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
 		int j = (closestPair0.y == 0 || closestPair1.y == 0) ? (closestPair0.y == 1 || closestPair1.y == 1) ? 2 : 1 : 0;
-		float3 mutation = currentMutated.positions[i] - current.positions[i];
-		float3 vertexPlus = current.positions[i] + mutation;
-		float3 vertexMinus = current.positions[i] - mutation;
-		float3 otherVertex = other.positions[j];
-		float3 lineDir = normalize(other.positions[closestPair1.y] - other.positions[closestPair0.y]);
+		float3 mutation = currentMutatedPositions[i] - currentPositions[i];
+		float3 vertexPlus = currentPositions[i] + mutation;
+		float3 vertexMinus = currentPositions[i] - mutation;
+		float3 otherVertex = otherPositions[j];
+		float3 lineDir = normalize(otherPositions[closestPair1.y] - otherPositions[closestPair0.y]);
 		length2Minus = length(ProjectPointOnLine(otherVertex, otherVertex + lineDir, vertexMinus) - vertexMinus);
 		length2Plus = length(ProjectPointOnLine(otherVertex, otherVertex + lineDir, vertexPlus) - vertexPlus);
-		lossLength = length(ProjectPointOnLine(other.positions[closestPair0.y], other.positions[closestPair1.y], otherVertex) - otherVertex);
+		lossLength = length(ProjectPointOnLine(otherPositions[closestPair0.y], otherPositions[closestPair1.y], otherVertex) - otherVertex);
 	}
 
 	lossMinus = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
@@ -797,10 +813,6 @@ void ListValidAndInvalidPrimitiveIDs(uint3 id : SV_DispatchThreadID)
 		return;
 	uint primitiveID = threadID;// (threadID + _CurrentPairingOffset) % _PrimitiveCount;
 
-	// Don't resample skybox primitives
-	if (primitiveID >= _PrimitiveCount)
-		return;
-
 	PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
 	float primitiveArea;
 	bool isValid = PrimitiveIsValid(primitiveData, primitiveArea, _MinPrimitiveWorldArea);
@@ -888,7 +900,7 @@ void InitBitonicSortValidPrimitives(uint threadID : SV_DispatchThreadID)
 	{
 		sort.x = _ReadValidPrimitiveIDs[threadID];
 		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
-		sort.y = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]) * 65536;
+		sort.y = GetTriangleArea(primitiveData.geometry) * 65536;
 		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
 		float posGradientMagnitude = length(primitiveGradients.positions[0] + primitiveGradients.positions[1] + primitiveGradients.positions[2]);
 		sort.y = posGradientMagnitude * 65536;*/
@@ -947,11 +959,15 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 		return;
 	PrimitiveData primitive0 = _PrimitiveBuffer[primitiveID0];
 	PrimitiveData primitive1 = _PrimitiveBuffer[primitiveID1];
+	float3 primitive1Positions[3];
+	primitive1Positions[0] = GetWorldVertex(primitive1.geometry, 0);
+	primitive1Positions[1] = GetWorldVertex(primitive1.geometry, 1);
+	primitive1Positions[2] = GetWorldVertex(primitive1.geometry, 2);
 
 	// Longest edge bisection
-	float lengthA = length(primitive1.positions[1] - primitive1.positions[0]);
-	float lengthB = length(primitive1.positions[2] - primitive1.positions[1]);
-	float lengthC = length(primitive1.positions[0] - primitive1.positions[2]);
+	float lengthA = length(primitive1Positions[1] - primitive1Positions[0]);
+	float lengthB = length(primitive1Positions[2] - primitive1Positions[1]);
+	float lengthC = length(primitive1Positions[0] - primitive1Positions[2]);
 	uint idBase, idLeft, idRight;
 	if (lengthA > lengthB && lengthA > lengthC)
 	{
@@ -976,38 +992,55 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	_PrimitiveKillCounters[primitiveID0] = _FramesUnseenBeforeKill;
 	_PrimitiveKillCounters[primitiveID1] = _FramesUnseenBeforeKill;
 
-	// Handle positions
+	// GEOMETRY
 #ifdef ALTERNATE_POSITIONS
-	_PrimitiveBuffer[primitiveID0].basePosition = primitive1.basePosition;
+	_PrimitiveBuffer[primitiveID0].geometry.position = primitive1.geometry.position;
+	_PrimitiveBuffer[primitiveID0].geometry.rotation = primitive1.geometry.rotation;
+	float2 newOffset = (primitive1.geometry.offsets[idLeft] + primitive1.geometry.offsets[idRight]) / 2.0;
+	_PrimitiveBuffer[primitiveID0].geometry.offsets[0] = primitive1.geometry.offsets[idBase];
+	_PrimitiveBuffer[primitiveID0].geometry.offsets[1] = primitive1.geometry.offsets[idLeft];
+	_PrimitiveBuffer[primitiveID0].geometry.offsets[2] = newOffset;
+	_PrimitiveBuffer[primitiveID1].geometry.offsets[0] = primitive1.geometry.offsets[idBase];
+	_PrimitiveBuffer[primitiveID1].geometry.offsets[1] = newOffset;
+	_PrimitiveBuffer[primitiveID1].geometry.offsets[2] = primitive1.geometry.offsets[idRight];
+#else
+	float3 newVertex = (primitive1Positions[idLeft] + primitive1Positions[idRight]) / 2.0;
+	_PrimitiveBuffer[primitiveID0].geometry.positions[0] = primitive1Positions[idBase];
+	_PrimitiveBuffer[primitiveID0].geometry.positions[1] = primitive1Positions[idLeft];
+	_PrimitiveBuffer[primitiveID0].geometry.positions[2] = newVertex;
+	_PrimitiveBuffer[primitiveID1].geometry.positions[0] = primitive1Positions[idBase];
+	_PrimitiveBuffer[primitiveID1].geometry.positions[1] = newVertex;
+	_PrimitiveBuffer[primitiveID1].geometry.positions[2] = primitive1Positions[idRight];
 #endif
-	float3 newVertex = (primitive1.positions[idLeft] + primitive1.positions[idRight]) / 2.0;
-	_PrimitiveBuffer[primitiveID0].positions[0] = primitive1.positions[idBase];
-	_PrimitiveBuffer[primitiveID0].positions[1] = primitive1.positions[idLeft];
-	_PrimitiveBuffer[primitiveID0].positions[2] = newVertex;
-	_PrimitiveBuffer[primitiveID1].positions[0] = primitive1.positions[idBase];
-	_PrimitiveBuffer[primitiveID1].positions[1] = newVertex;
-	_PrimitiveBuffer[primitiveID1].positions[2] = primitive1.positions[idRight];
 
 	// Fake "gaussian" triangles special case
 #ifdef TRIANGLE_GAUSSIAN
-	float3 offset = (primitive1.positions[idRight] - primitive1.positions[idLeft]) * 0.15;
-	_PrimitiveBuffer[primitiveID0].positions[0] += offset;
-	_PrimitiveBuffer[primitiveID0].positions[2] += offset;
-	_PrimitiveBuffer[primitiveID1].positions[0] -= offset;
-	_PrimitiveBuffer[primitiveID1].positions[1] -= offset;
+#ifdef ALTERNATE_POSITIONS
+	float2 offset = (primitive1.geometry.offsets[idRight] - primitive1.geometry.offsets[idLeft]) * 0.15;
+	_PrimitiveBuffer[primitiveID0].geometry.offsets[0] += offset;
+	_PrimitiveBuffer[primitiveID0].geometry.offsets[2] += offset;
+	_PrimitiveBuffer[primitiveID1].geometry.offsets[0] -= offset;
+	_PrimitiveBuffer[primitiveID1].geometry.offsets[1] -= offset;
+#else
+	float3 offset = (primitive1Positions[idRight] - primitive1Positions[idLeft]) * 0.15;
+	_PrimitiveBuffer[primitiveID0].geometry.positions[0] += offset;
+	_PrimitiveBuffer[primitiveID0].geometry.positions[2] += offset;
+	_PrimitiveBuffer[primitiveID1].geometry.positions[0] -= offset;
+	_PrimitiveBuffer[primitiveID1].geometry.positions[1] -= offset;
+#endif
 #endif
 
 	// If we're optimizing in 2D, add small Z offset to one Primitive to avoid Z-fighting
-	if (_IsOptim2D > 0.5f)
+	/*if (_IsOptim2D > 0.5f)
 	{
 		float rand = WangHash((_CurrentFrame * _PrimitiveCount) + primitiveID0) * (1.0 / 4294967296.0);
 		float smallOffset = (rand * 2.0 - 1.0) * 0.0001;
 		_PrimitiveBuffer[primitiveID0].positions[0].z += smallOffset;
 		_PrimitiveBuffer[primitiveID0].positions[1].z += smallOffset;
 		_PrimitiveBuffer[primitiveID0].positions[2].z += smallOffset;
-	}
+	}*/
 
-	// Handle color
+	// COLOR
 #ifdef TRIANGLE_GRADIENT
 	//Color newColor = (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
 	_PrimitiveBuffer[primitiveID0].colors[0] = primitive1.colors[idBase];

@@ -242,9 +242,9 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 
 
 // ========================= PRIMITIVE SIZE =========================
-#define POSITION_SIZE 9
+#define GEOMETRY_SIZE 9
 #ifdef ALTERNATE_POSITIONS
-#define POSITION_SIZE 12
+#define GEOMETRY_SIZE 13
 #endif
 
 #define ALPHA_SIZE 0
@@ -265,19 +265,153 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 
 #define PRIMITIVE_SIZE COLOR_SIZE + ALPHA_SIZE
 #ifdef TRIANGLE_SOLID
-#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE + ALPHA_SIZE
+#define PRIMITIVE_SIZE GEOMETRY_SIZE + COLOR_SIZE + ALPHA_SIZE
 #endif
 #ifdef TRIANGLE_GRADIENT
-#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE * 3 + ALPHA_SIZE * 3
+#define PRIMITIVE_SIZE GEOMETRY_SIZE + COLOR_SIZE * 3 + ALPHA_SIZE * 3
 #endif
 #ifdef TRIANGLE_GAUSSIAN
-#define PRIMITIVE_SIZE POSITION_SIZE + COLOR_SIZE + ALPHA_SIZE
+#define PRIMITIVE_SIZE GEOMETRY_SIZE + COLOR_SIZE + ALPHA_SIZE
 #endif
 
 
 
 
-// ======================= SPHERICAL HARMONICS =======================
+
+// ======================= GEOMETRY =======================
+struct Geometry
+{
+#ifdef ALTERNATE_POSITIONS
+	float3 position;
+	float4 rotation;
+	float2 offsets[3];
+#else
+	float3 positions[3];
+#endif
+};
+
+float _LearningRatePosition;
+float _LearningRateRotation;
+float _LearningRateOffsets;
+
+Geometry ZeroInitGeometry()
+{
+	Geometry geometry;
+
+#ifdef ALTERNATE_POSITIONS
+	geometry.position = float3(0, 0, 0);
+	geometry.rotation = float4(0, 0, 0, 0);
+	geometry.offsets[0] = float2(0, 0);
+	geometry.offsets[1] = float2(0, 0);
+	geometry.offsets[2] = float2(0, 0);
+#else
+	geometry.positions[0] = float3(0, 0, 0);
+	geometry.positions[1] = float3(0, 0, 0);
+	geometry.positions[2] = float3(0, 0, 0);
+#endif
+
+	return geometry;
+}
+
+Geometry GetFloatArrayAsGeometry(float asArray[PRIMITIVE_SIZE], inout int offset)
+{
+	Geometry geometry;
+
+#ifdef ALTERNATE_POSITIONS
+	geometry.position = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
+	geometry.rotation = float4(asArray[offset++], asArray[offset++], asArray[offset++], asArray[offset++]);
+	geometry.offsets[0] = float2(asArray[offset++], asArray[offset++]);
+	geometry.offsets[1] = float2(asArray[offset++], asArray[offset++]);
+	geometry.offsets[2] = float2(asArray[offset++], asArray[offset++]);
+#else
+	geometry.positions[0] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
+	geometry.positions[1] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
+	geometry.positions[2] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
+#endif
+
+	return geometry;
+}
+
+void GetGeometryAsFloatArray(Geometry geometry, inout float asArray[PRIMITIVE_SIZE], inout int offset)
+{
+#ifdef ALTERNATE_POSITIONS
+	asArray[offset++] = geometry.position.x; asArray[offset++] = geometry.position.y; asArray[offset++] = geometry.position.z;
+	asArray[offset++] = geometry.rotation.x; asArray[offset++] = geometry.rotation.y; asArray[offset++] = geometry.rotation.z; asArray[offset++] = geometry.rotation.w;
+	asArray[offset++] = geometry.offsets[0].x; asArray[offset++] = geometry.offsets[0].y;
+	asArray[offset++] = geometry.offsets[1].x; asArray[offset++] = geometry.offsets[1].y;
+	asArray[offset++] = geometry.offsets[2].x; asArray[offset++] = geometry.offsets[2].y;
+#else
+	asArray[offset++] = geometry.positions[0].x; asArray[offset++] = geometry.positions[0].y; asArray[offset++] = geometry.positions[0].z;
+	asArray[offset++] = geometry.positions[1].x; asArray[offset++] = geometry.positions[1].y; asArray[offset++] = geometry.positions[1].z;
+	asArray[offset++] = geometry.positions[2].x; asArray[offset++] = geometry.positions[2].y; asArray[offset++] = geometry.positions[2].z;
+#endif
+}
+
+void GetGeometryLearningRatesFloatArray(inout float asArray[PRIMITIVE_SIZE], inout int offset)
+{
+#ifdef ALTERNATE_POSITIONS
+	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
+	asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation;
+	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
+	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
+	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
+#else
+	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
+	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
+	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
+#endif
+}
+
+float3 GetWorldVertex(Geometry geometry, int i)
+{
+#ifdef ALTERNATE_POSITIONS
+	float4 q = geometry.rotation;
+	float3 right = float3(1 - 2 * q.y * q.y - 2 * q.z * q.z, 2 * q.x * q.y + 2 * q.w * q.z, 2 * q.x * q.z - 2 * q.w * q.y);
+	float3 up = float3(2 * q.x * q.y - 2 * q.w * q.z, 1 - 2 * q.x * q.x - 2 * q.z * q.z, 2 * q.y * q.z + 2 * q.w * q.x);
+	float3 forward = float3(2 * q.x * q.z + 2 * q.w * q.y, 2 * q.y * q.z - 2 * q.w * q.x, 1 - 2 * q.x * q.x - 2 * q.y * q.y);
+	return geometry.position + right * geometry.offsets[i].x + up * geometry.offsets[i].y;
+#else
+	return geometry.positions[i];
+#endif
+}
+
+float GetTriangleArea(Geometry geometry)
+{
+#ifdef ALTERNATE_POSITIONS
+	float3 v0 = GetWorldVertex(geometry, 0);
+	float3 v1 = GetWorldVertex(geometry, 1);
+	float3 v2 = GetWorldVertex(geometry, 2);
+	return Unsigned3DTriangleArea(v0, v1, v2);
+#else
+	return Unsigned3DTriangleArea(geometry.positions[0], geometry.positions[1], geometry.positions[2]);
+#endif
+}
+
+float3 GetPrimitiveWorldDepthSortPosition(Geometry geometry)
+{
+#ifdef ALTERNATE_POSITIONS
+	float3 v0 = GetWorldVertex(geometry, 0);
+	float3 v1 = GetWorldVertex(geometry, 1);
+	float3 v2 = GetWorldVertex(geometry, 2);
+	return (v0, v1, v2) / 3.0 + geometry.position;
+#else
+	return (geometry.positions[0] + geometry.positions[1] + geometry.positions[2]) / 3.0;
+#endif
+}
+
+Geometry PostProcessGeometry(Geometry geometry)
+{
+#ifdef ALTERNATE_POSITIONS
+	geometry.rotation = normalize(geometry.rotation);
+#endif
+
+	return geometry;
+}
+
+
+
+
+// ======================== COLORS ========================
 static float SH_C0 = 0.28209479177387814;
 static float SH_C1 = 0.4886025119029199;
 static float SH_C2[5] =
@@ -521,24 +655,14 @@ Color PostProcessColor(Color colorData)
 #ifdef TRIANGLE_SOLID
 struct PrimitiveData
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 basePosition;
-#endif
-	float3 positions[3];
+	Geometry geometry;
 	Color color;
 };
-
-float _LearningRatePosition;
 
 PrimitiveData ZeroInitPrimitiveData()
 {
 	PrimitiveData primitiveData;
-#ifdef ALTERNATE_POSITIONS
-	primitiveData.basePosition = float3(0, 0, 0);
-#endif
-	primitiveData.positions[0] = float3(0, 0, 0);
-	primitiveData.positions[1] = float3(0, 0, 0);
-	primitiveData.positions[2] = float3(0, 0, 0);
+	primitiveData.geometry = ZeroInitGeometry();
 	primitiveData.color = ZeroInitColor();
 	return primitiveData;
 }
@@ -547,14 +671,7 @@ PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 {
 	PrimitiveData primitiveData;
 	int offset = 0;
-#ifdef ALTERNATE_POSITIONS
-	primitiveData.basePosition = float3(asArray[0], asArray[1], asArray[2]);
-	offset += 3;
-#endif
-	primitiveData.positions[0] = float3(asArray[offset + 0], asArray[offset + 1], asArray[offset + 2]);
-	primitiveData.positions[1] = float3(asArray[offset + 3], asArray[offset + 4], asArray[offset + 5]);
-	primitiveData.positions[2] = float3(asArray[offset + 6], asArray[offset + 7], asArray[offset + 8]);
-	offset += 9;
+	primitiveData.geometry = GetFloatArrayAsGeometry(asArray, offset);
 	primitiveData.color = GetFloatArrayAsColor(asArray, offset);
 	return primitiveData;
 }
@@ -562,50 +679,14 @@ PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
 {
 	int offset = 0;
-#ifdef ALTERNATE_POSITIONS
-	asArray[offset + 0] = primitiveData.basePosition.x;
-	asArray[offset + 1] = primitiveData.basePosition.y;
-	asArray[offset + 2] = primitiveData.basePosition.z;
-	offset += 3;
-#endif
-
-	asArray[offset + 0] = primitiveData.positions[0].x;
-	asArray[offset + 1] = primitiveData.positions[0].y;
-	asArray[offset + 2] = primitiveData.positions[0].z;
-
-	asArray[offset + 3] = primitiveData.positions[1].x;
-	asArray[offset + 4] = primitiveData.positions[1].y;
-	asArray[offset + 5] = primitiveData.positions[1].z;
-
-	asArray[offset + 6] = primitiveData.positions[2].x;
-	asArray[offset + 7] = primitiveData.positions[2].y;
-	asArray[offset + 8] = primitiveData.positions[2].z;
-
-	offset += 9;
+	GetGeometryAsFloatArray(primitiveData.geometry, asArray, offset);
 	GetColorAsFloatArray(primitiveData.color, asArray, offset);
 }
 
 void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
 {
 	int offset = 0;
-	float lrPositionToUse = _LearningRatePosition;
-#ifdef ALTERNATE_POSITIONS
-	asArray[offset + 0] = _LearningRatePosition;
-	asArray[offset + 1] = _LearningRatePosition;
-	asArray[offset + 2] = _LearningRatePosition;
-	offset += 3;
-	lrPositionToUse /= 2.0;
-#endif
-	asArray[offset + 0] = lrPositionToUse;
-	asArray[offset + 1] = lrPositionToUse;
-	asArray[offset + 2] = lrPositionToUse;
-	asArray[offset + 3] = lrPositionToUse;
-	asArray[offset + 4] = lrPositionToUse;
-	asArray[offset + 5] = lrPositionToUse;
-	asArray[offset + 6] = lrPositionToUse;
-	asArray[offset + 7] = lrPositionToUse;
-	asArray[offset + 8] = lrPositionToUse;
-	offset += 9;
+	GetGeometryLearningRatesFloatArray(asArray, offset);
 	GetColorLearningRatesFloatArray(asArray, offset);
 }
 
@@ -615,19 +696,15 @@ float4 FetchColorFromPrimitive(PrimitiveData primitiveData, float3 viewDir = flo
 	return color;
 }
 
-float3 GetPrimitiveWorldDepthSortPosition(PrimitiveData primitiveData)
-{
-	return (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0;
-}
-
 void PostProcessPrimitive(inout PrimitiveData primitiveData)
 {
+	primitiveData.geometry = PostProcessGeometry(primitiveData.geometry);
 	primitiveData.color = PostProcessColor(primitiveData.color);
 }
 
 bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, float minWorldArea)
 {
-	primitiveArea = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]);
+	primitiveArea = GetTriangleArea(primitiveData.geometry);
 	if (primitiveArea < minWorldArea)
 		return false;
 
@@ -647,10 +724,7 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 #ifdef TRIANGLE_GRADIENT
 struct PrimitiveData
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 basePosition;
-#endif
-	float3 positions[3];
+	Geometry geometry;
 	Color colors[3];
 };
 
@@ -659,9 +733,7 @@ float _LearningRatePosition;
 PrimitiveData ZeroInitPrimitiveData()
 {
 	PrimitiveData primitiveData;
-	primitiveData.positions[0] = float3(0, 0, 0);
-	primitiveData.positions[1] = float3(0, 0, 0);
-	primitiveData.positions[2] = float3(0, 0, 0);
+	primitiveData.geometry = ZeroInitGeometry();
 	primitiveData.colors[0] = ZeroInitColor();
 	primitiveData.colors[1] = ZeroInitColor();
 	primitiveData.colors[2] = ZeroInitColor();
@@ -671,10 +743,8 @@ PrimitiveData ZeroInitPrimitiveData()
 PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 {
 	PrimitiveData primitiveData;
-	primitiveData.positions[0] = float3(asArray[0], asArray[1], asArray[2]);
-	primitiveData.positions[1] = float3(asArray[3], asArray[4], asArray[5]);
-	primitiveData.positions[2] = float3(asArray[6], asArray[7], asArray[8]);
-	int offset = 9;
+	int offset = 0;
+	primitiveData.geometry = GetFloatArrayAsGeometry(asArray, offset);
 	primitiveData.colors[0] = GetFloatArrayAsColor(asArray, offset);
 	primitiveData.colors[1] = GetFloatArrayAsColor(asArray, offset);
 	primitiveData.colors[2] = GetFloatArrayAsColor(asArray, offset);
@@ -683,19 +753,8 @@ PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 
 void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = primitiveData.positions[0].x;
-	asArray[1] = primitiveData.positions[0].y;
-	asArray[2] = primitiveData.positions[0].z;
-
-	asArray[3] = primitiveData.positions[1].x;
-	asArray[4] = primitiveData.positions[1].y;
-	asArray[5] = primitiveData.positions[1].z;
-
-	asArray[6] = primitiveData.positions[2].x;
-	asArray[7] = primitiveData.positions[2].y;
-	asArray[8] = primitiveData.positions[2].z;
-
-	int offset = 9;
+	int offset = 0;
+	GetGeometryAsFloatArray(primitiveData.geometry, asArray, offset);
 	GetColorAsFloatArray(primitiveData.colors[0], asArray, offset);
 	GetColorAsFloatArray(primitiveData.colors[1], asArray, offset);
 	GetColorAsFloatArray(primitiveData.colors[2], asArray, offset);
@@ -703,17 +762,8 @@ void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRI
 
 void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = _LearningRatePosition;
-	asArray[1] = _LearningRatePosition;
-	asArray[2] = _LearningRatePosition;
-	asArray[3] = _LearningRatePosition;
-	asArray[4] = _LearningRatePosition;
-	asArray[5] = _LearningRatePosition;
-	asArray[6] = _LearningRatePosition;
-	asArray[7] = _LearningRatePosition;
-	asArray[8] = _LearningRatePosition;
-
-	int offset = 9;
+	int offset = 0;
+	GetGeometryLearningRatesFloatArray(asArray, offset);
 	GetColorLearningRatesFloatArray(asArray, offset);
 	GetColorLearningRatesFloatArray(asArray, offset);
 	GetColorLearningRatesFloatArray(asArray, offset);
@@ -728,20 +778,16 @@ float4 FetchColorFromPrimitive(PrimitiveData primitiveData, float3 viewDir = flo
 	return color;
 }
 
-float3 GetPrimitiveWorldDepthSortPosition(PrimitiveData primitiveData)
-{
-	return (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0;
-}
-
 void PostProcessPrimitive(inout PrimitiveData primitiveData)
 {
+	primitiveData.geometry = PostProcessGeometry(primitiveData.geometry);
 	for (int i = 0; i < 3; i++)
 		primitiveData.colors[i] = PostProcessColor(primitiveData.colors[i]);
 }
 
 bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, float minWorldArea)
 {
-	primitiveArea = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]);
+	primitiveArea = GetTriangleArea(primitiveData.geometry);
 	if (primitiveArea < minWorldArea)
 		return false;
 
@@ -761,10 +807,7 @@ bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, floa
 #ifdef TRIANGLE_GAUSSIAN
 struct PrimitiveData
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 basePosition;
-#endif
-	float3 positions[3];
+	Geometry geometry;
 	Color color;
 };
 
@@ -773,9 +816,7 @@ float _LearningRatePosition;
 PrimitiveData ZeroInitPrimitiveData()
 {
 	PrimitiveData primitiveData;
-	primitiveData.positions[0] = float3(0, 0, 0);
-	primitiveData.positions[1] = float3(0, 0, 0);
-	primitiveData.positions[2] = float3(0, 0, 0);
+	primitiveData.geometry = ZeroInitGeometry();
 	primitiveData.color = ZeroInitColor();
 	return primitiveData;
 }
@@ -783,44 +824,23 @@ PrimitiveData ZeroInitPrimitiveData()
 PrimitiveData GetFloatArrayAsPrimitive(float asArray[PRIMITIVE_SIZE])
 {
 	PrimitiveData primitiveData;
-	primitiveData.positions[0] = float3(asArray[0], asArray[1], asArray[2]);
-	primitiveData.positions[1] = float3(asArray[3], asArray[4], asArray[5]);
-	primitiveData.positions[2] = float3(asArray[6], asArray[7], asArray[8]);
-	int offset = 9;
+	int offset = 0;
+	primitiveData.geometry = GetFloatArrayAsGeometry(asArray, offset);
 	primitiveData.color = GetFloatArrayAsColor(asArray, offset);
 	return primitiveData;
 }
 
 void GetPrimitiveAsFloatArray(PrimitiveData primitiveData, out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = primitiveData.positions[0].x;
-	asArray[1] = primitiveData.positions[0].y;
-	asArray[2] = primitiveData.positions[0].z;
-
-	asArray[3] = primitiveData.positions[1].x;
-	asArray[4] = primitiveData.positions[1].y;
-	asArray[5] = primitiveData.positions[1].z;
-
-	asArray[6] = primitiveData.positions[2].x;
-	asArray[7] = primitiveData.positions[2].y;
-	asArray[8] = primitiveData.positions[2].z;
-
-	int offset = 9;
+	int offset = 0;
+	GetGeometryAsFloatArray(primitiveData.geometry, asArray, offset);
 	GetColorAsFloatArray(primitiveData.color, asArray, offset);
 }
 
 void GetLearningRatesFloatArray(out float asArray[PRIMITIVE_SIZE])
 {
-	asArray[0] = _LearningRatePosition;
-	asArray[1] = _LearningRatePosition;
-	asArray[2] = _LearningRatePosition;
-	asArray[3] = _LearningRatePosition;
-	asArray[4] = _LearningRatePosition;
-	asArray[5] = _LearningRatePosition;
-	asArray[6] = _LearningRatePosition;
-	asArray[7] = _LearningRatePosition;
-	asArray[8] = _LearningRatePosition;
-	int offset = 9;
+	int offset = 0;
+	GetGeometryLearningRatesFloatArray(asArray, offset);
 	GetColorLearningRatesFloatArray(asArray, offset);
 }
 
@@ -835,19 +855,15 @@ float4 FetchColorFromPrimitive(PrimitiveData primitiveData, float3 viewDir = flo
 	return float4(colorRGBA.rgb, alpha);
 }
 
-float3 GetPrimitiveWorldDepthSortPosition(PrimitiveData primitiveData)
-{
-	return (primitiveData.positions[0] + primitiveData.positions[1] + primitiveData.positions[2]) / 3.0;
-}
-
 void PostProcessPrimitive(inout PrimitiveData primitiveData)
 {
+	primitiveData.geometry = PostProcessGeometry(primitiveData.geometry);
 	primitiveData.color = PostProcessColor(primitiveData.color);
 }
 
 bool PrimitiveIsValid(PrimitiveData primitiveData, out float primitiveArea, float minWorldArea)
 {
-	primitiveArea = Unsigned3DTriangleArea(primitiveData.positions[0], primitiveData.positions[1], primitiveData.positions[2]);
+	primitiveArea = GetTriangleArea(primitiveData.geometry);
 	if (primitiveArea < minWorldArea)
 		return false;
 

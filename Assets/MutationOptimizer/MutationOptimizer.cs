@@ -172,6 +172,8 @@ public class MutationOptimizer : MonoBehaviour
 	[Range(0.0f, 1.0f)] public float beta1 = 0.9f;
 	[Range(0.0f, 1.0f)] public float beta2 = 0.999f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRatePosition = 0.01f;
+	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateRotation = 0.01f;
+	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateOffsets = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
@@ -837,6 +839,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (parameterSeparationMode == ParameterOptimSeparationMode.None || dontDoSeparation == true)
 		{
 			mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
+			mutationOptimizerCS.SetFloat("_LearningRateRotation", learningRateRotation * learningRateModifier);
+			mutationOptimizerCS.SetFloat("_LearningRateOffsets", learningRateOffsets * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateEnvMap", learningRateEnvMap * learningRateModifier);
@@ -847,6 +851,8 @@ public class MutationOptimizer : MonoBehaviour
 
 		// Disable all learning rates
 		mutationOptimizerCS.SetFloat("_LearningRatePosition", 0.0f);
+		mutationOptimizerCS.SetFloat("_LearningRateRotation", 0.0f);
+		mutationOptimizerCS.SetFloat("_LearningRateOffsets", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateColor", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateAlpha", 0.0f);
 		mutationOptimizerCS.SetFloat("_LearningRateEnvMap", 0.0f);
@@ -860,6 +866,8 @@ public class MutationOptimizer : MonoBehaviour
 				if (currentParameterGroup % 2 == 0)
 				{
 					mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
+					mutationOptimizerCS.SetFloat("_LearningRateRotation", learningRateRotation * learningRateModifier);
+					mutationOptimizerCS.SetFloat("_LearningRateOffsets", learningRateOffsets * learningRateModifier);
 				}
 				else
 				{
@@ -878,6 +886,8 @@ public class MutationOptimizer : MonoBehaviour
 			{
 				List<Tuple<string, float>> usedParams = new List<Tuple<string, float>>();
 				if (learningRatePosition > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRatePosition", learningRatePosition));
+				if (useAlternateTrianglePosition == true && learningRateRotation > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateRotation", learningRateRotation));
+				if (useAlternateTrianglePosition == true && learningRateOffsets > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateOffsets", learningRateOffsets));
 				if (learningRateColor > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateColor", learningRateColor));
 				if (transparencyMode != TransparencyMode.None && learningRateAlpha > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateAlpha", learningRateAlpha));
 				if (optimizeEnvMap == true && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
@@ -2198,7 +2208,7 @@ public class MutationOptimizer : MonoBehaviour
 	{
 		int positionSize = 9;
 		if (useAlternateTrianglePosition == true)
-			positionSize = 12;
+			positionSize = 13;
 
 		int alphaSize = 0;
 		if (transparencyMode != TransparencyMode.None)
@@ -2322,37 +2332,44 @@ public class MutationOptimizer : MonoBehaviour
 		float[] randData = new float[primitiveCount * primitiveFloatSize];
 		for (int i = 0; i < primitiveCount; i++)
 		{
+			int offset = 0;
+
 			// Position
 			float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
 			float3 randPos = positions[i];
-			float3 position0, position1, position2;
-			if (targetMode == TargetMode.Image)
-			{
-				randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-				position0 = new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				position1 = new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				position2 = new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-			}
-			else
-			{
-				position0 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				position1 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				position2 = new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-			}
-			int offset = 0;
 			if (useAlternateTrianglePosition == true)
 			{
+				// Position
 				randData[i * primitiveFloatSize + offset + 0] = randPos.x; randData[i * primitiveFloatSize + offset + 1] = randPos.y; randData[i * primitiveFloatSize + offset + 2] = randPos.z; offset += 3;
+
+				// Rotation
+				Quaternion randRot = UnityEngine.Random.rotationUniform;
+				randData[i * primitiveFloatSize + offset + 0] = randRot.x; randData[i * primitiveFloatSize + offset + 1] = randRot.y; randData[i * primitiveFloatSize + offset + 2] = randRot.z; randData[i * primitiveFloatSize + offset + 2] = randRot.w; offset += 4;
+
+				// Offsets
+				float2 position0 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
+				float2 position1 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
+				float2 position2 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
+				randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; offset += 2;
+				randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; offset += 2;
+				randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; offset += 2;
 			}
 			else
 			{
-				position0 += randPos;
-				position1 += randPos;
-				position2 += randPos;
+				float3 position0 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+				float3 position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+				float3 position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+				if (targetMode == TargetMode.Image)
+				{
+					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
+					position0 = new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+					position1 = new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+					position2 = new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+				}
+				randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; randData[i * primitiveFloatSize + offset + 2] = position0.z; offset += 3;
+				randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; randData[i * primitiveFloatSize + offset + 2] = position1.z; offset += 3;
+				randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; randData[i * primitiveFloatSize + offset + 2] = position2.z; offset += 3;
 			}
-			randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; randData[i * primitiveFloatSize + offset + 2] = position0.z; offset += 3;
-			randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; randData[i * primitiveFloatSize + offset + 2] = position1.z; offset += 3;
-			randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; randData[i * primitiveFloatSize + offset + 2] = position2.z; offset += 3;
 
 			// Alpha
 			if (transparencyMode != TransparencyMode.None)
