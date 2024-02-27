@@ -167,11 +167,11 @@ MonoBehaviour:
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  useAlternateTrianglePosition: 1
-  primitiveCount: 1000
-  primitiveInitSize: 0.05
+  useAlternateTrianglePosition: 0
+  primitiveCount: 16000
+  primitiveInitSize: 0.001
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
+  initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
@@ -183,7 +183,7 @@ MonoBehaviour:
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 2, y: 2}
   backgroundMode: 0
-  envMapResolution: 64
+  envMapResolution: 256
   displayAdaptiveTriangleBlurring: 0
   optimAdaptiveTriangleBlurring: 0
   reset: 0
@@ -193,8 +193,8 @@ MonoBehaviour:
   separateFreeViewCamera: 1
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 500, y: 0.001}
-  doublingAmount: 7
+  lrGeometryStartMulAndSpeed: {x: 0, y: 0.0005}
+  doublingAmount: 0
   doubleEveryXSteps: 1000
   optimizer: 1
   lossMode: 1
@@ -207,16 +207,16 @@ MonoBehaviour:
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
-  globalLearningRate: 0.342
+  globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0.00001
-  learningRateRotation: 0.0001
-  learningRateOffsets: 0.000001
+  learningRatePosition: 0.001
+  learningRateRotation: 0.01
+  learningRateOffsets: 0.001
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 5
+  structuralLossWeight: 0.5
   doPrimitiveResampling: 1
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 8
@@ -659,8 +659,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.096883155, y: -0.24702246, z: -0.024830315, w: -0.9638346}
-  m_LocalPosition: {x: -1.2020473, y: -1.682445, z: -2.580029}
+  m_LocalRotation: {x: 0.000051780757, y: -0.9997159, z: -0.023734173, w: -0.0021810764}
+  m_LocalPosition: {x: -0.009156346, y: -0.09969476, z: 2.0984366}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

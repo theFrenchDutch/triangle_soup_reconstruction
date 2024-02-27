@@ -52,6 +52,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty lossMode;
 	SerializedProperty gradientsWarmupSteps;
 	SerializedProperty optimSupersampling;
+	SerializedProperty pixelCountNormalization;
 	SerializedProperty doAlphaLoss;
 	SerializedProperty doStructuralLoss;
 	SerializedProperty doAllInputFramesForEachOptimStep;
@@ -132,6 +133,7 @@ public class MutationOptimizerEditor : Editor
 		lossMode = serializedObject.FindProperty("lossMode");
 		gradientsWarmupSteps = serializedObject.FindProperty("gradientsWarmupSteps");
 		optimSupersampling = serializedObject.FindProperty("optimSupersampling");
+		pixelCountNormalization = serializedObject.FindProperty("pixelCountNormalization");
 		doAlphaLoss = serializedObject.FindProperty("doAlphaLoss");
 		doStructuralLoss = serializedObject.FindProperty("doStructuralLoss");
 		doAllInputFramesForEachOptimStep = serializedObject.FindProperty("doAllInputFramesForEachOptimStep");
@@ -319,6 +321,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(lossMode);
 		EditorGUILayout.PropertyField(gradientsWarmupSteps);
 		EditorGUILayout.PropertyField(optimSupersampling);
+		EditorGUILayout.PropertyField(pixelCountNormalization);
 		EditorGUILayout.PropertyField(doAlphaLoss);
 		EditorGUILayout.PropertyField(doStructuralLoss);
 		if (targetMode.enumValueIndex == 2)

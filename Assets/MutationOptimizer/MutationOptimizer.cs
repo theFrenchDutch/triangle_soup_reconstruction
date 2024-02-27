@@ -162,6 +162,7 @@ public class MutationOptimizer : MonoBehaviour
 	public LossMode lossMode = LossMode.L2;
 	public int gradientsWarmupSteps = 16;
 	public float optimSupersampling = 1;
+	public bool pixelCountNormalization = false;
 	public bool doAlphaLoss = true;
 	public bool doStructuralLoss = true;
 	public bool doAllInputFramesForEachOptimStep = false;
@@ -179,7 +180,7 @@ public class MutationOptimizer : MonoBehaviour
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1000.0f)] public float structuralLossWeight = 0.01f;
+	[Range(0.0f, 1.0f)] public float structuralLossWeight = 0.5f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -1209,6 +1210,8 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetInt("_EnvMapResolution", envMapResolution);
 
 		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
+		computeShader.SetFloat("_DoStructuralLoss", doStructuralLoss == true ? 1.0f : 0.0f);
+		computeShader.SetFloat("_DoPixelCountNorm", pixelCountNormalization == true ? 1.0f : 0.0f);
 	}
 
 	public void RandomizeCameraView()
@@ -1405,7 +1408,7 @@ public class MutationOptimizer : MonoBehaviour
 		gradientMoments1Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		gradientMoments2Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		primitiveBufferMutated[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
-		optimStepMutationError[0] = new ComputeBuffer(primitiveCount, sizeof(int) * 2);
+		optimStepMutationError[0] = new ComputeBuffer(primitiveCount, sizeof(int) * 4);
 		optimStepCounterBuffer[0] = new ComputeBuffer(primitiveCount, sizeof(int));
 		primitiveKillCounters = new ComputeBuffer(primitiveCount, sizeof(int));
 		ZeroInitBuffer(optimStepGradientsBuffer[0]);
@@ -1423,7 +1426,7 @@ public class MutationOptimizer : MonoBehaviour
 			gradientMoments1Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			gradientMoments2Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			primitiveBufferMutated[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
-			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int) * 2);
+			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int) * 4);
 			optimStepCounterBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));
 			ZeroInitBuffer(optimStepGradientsBuffer[1]);
 			ZeroInitBuffer(gradientMoments1Buffer[1]);
