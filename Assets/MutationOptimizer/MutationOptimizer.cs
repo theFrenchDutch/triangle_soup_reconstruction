@@ -842,7 +842,7 @@ public class MutationOptimizer : MonoBehaviour
 	public void SetOptimizerLearningRatesAndGetSeparateCount(int currentParameterGroup, bool dontDoSeparation = false)
 	{
 		// Normal mode
-		float learningRateModifier = globalLearningRate * (1.0f / optimSupersampling);
+		float learningRateModifier = globalLearningRate;// * (1.0f / optimSupersampling);
 		if (parameterSeparationMode == ParameterOptimSeparationMode.None || dontDoSeparation == true)
 		{
 			mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
