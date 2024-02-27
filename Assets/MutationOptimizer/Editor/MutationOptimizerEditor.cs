@@ -31,7 +31,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty maxFragmentsPerPixel;
 	SerializedProperty alphaContributingCutoff;
 	SerializedProperty randomViewZoomRange;
-	SerializedProperty optimizeEnvMap;
+	SerializedProperty backgroundMode;
 	SerializedProperty envMapResolution;
 	SerializedProperty displayAdaptiveTriangleBlurring;
 	SerializedProperty optimAdaptiveTriangleBlurring;
@@ -111,7 +111,7 @@ public class MutationOptimizerEditor : Editor
 		maxFragmentsPerPixel = serializedObject.FindProperty("maxFragmentsPerPixel");
 		alphaContributingCutoff = serializedObject.FindProperty("alphaContributingCutoff");
 		randomViewZoomRange = serializedObject.FindProperty("randomViewZoomRange");
-		optimizeEnvMap = serializedObject.FindProperty("optimizeEnvMap");
+		backgroundMode = serializedObject.FindProperty("backgroundMode");
 		envMapResolution = serializedObject.FindProperty("envMapResolution");
 		displayAdaptiveTriangleBlurring = serializedObject.FindProperty("displayAdaptiveTriangleBlurring");
 		optimAdaptiveTriangleBlurring = serializedObject.FindProperty("optimAdaptiveTriangleBlurring");
@@ -275,8 +275,9 @@ public class MutationOptimizerEditor : Editor
 		}
 		if (targetMode.enumValueIndex == 1 || targetMode.enumValueIndex == 3)
 			EditorGUILayout.PropertyField(randomViewZoomRange);
-		EditorGUILayout.PropertyField(optimizeEnvMap);
-		EditorGUILayout.PropertyField(envMapResolution);
+		EditorGUILayout.PropertyField(backgroundMode);
+		if (backgroundMode.enumValueIndex == 2)
+			EditorGUILayout.PropertyField(envMapResolution);
 		EditorGUILayout.PropertyField(displayAdaptiveTriangleBlurring);
 		EditorGUILayout.PropertyField(optimAdaptiveTriangleBlurring);
 
@@ -342,7 +343,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
 			EditorGUILayout.PropertyField(learningRateAlpha);
-		if (optimizeEnvMap.boolValue == true)
+		if (backgroundMode.boolValue == true)
 			EditorGUILayout.PropertyField(learningRateEnvMap);
 		if (doStructuralLoss.boolValue == true)
 			EditorGUILayout.PropertyField(structuralLossWeight);

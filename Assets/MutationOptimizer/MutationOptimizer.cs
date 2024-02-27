@@ -139,7 +139,7 @@ public class MutationOptimizer : MonoBehaviour
 	public int maxFragmentsPerPixel = 1;
 	[Range(0.0f, 1.0f)] public float alphaContributingCutoff = 0.9f;
 	public Vector2 randomViewZoomRange = Vector2.one;
-	public bool optimizeEnvMap = false;
+	public BackgroundMode backgroundMode = BackgroundMode.Black;
 	public int envMapResolution = 256;
 	public bool displayAdaptiveTriangleBlurring = false;
 	public bool optimAdaptiveTriangleBlurring = false;
@@ -235,7 +235,7 @@ public class MutationOptimizer : MonoBehaviour
 		kernelBitonicSortValidPrimitives = mutationOptimizerCS.FindKernel("BitonicSortValidPrimitives");
 		kernelPairResampling = mutationOptimizerCS.FindKernel("PairResampling");
 
-		int primitiveGroupCount = optimizeEnvMap == true ? 2 : 1;
+		int primitiveGroupCount = backgroundMode == BackgroundMode.EnvMap ? 2 : 1;
 		primitiveBuffer = new ComputeBuffer[primitiveGroupCount];
 		optimStepGradientsBuffer = new ComputeBuffer[primitiveGroupCount];
 		gradientMoments1Buffer = new ComputeBuffer[primitiveGroupCount];
@@ -291,7 +291,7 @@ public class MutationOptimizer : MonoBehaviour
 			ResetKeywords(rasterMaterial, true, true, true);
 			ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 			ResetOptimizationStep(0);
-			if (optimizeEnvMap == true)
+			if (backgroundMode == BackgroundMode.EnvMap)
 				ResetOptimizationStep(1);
 		}
 
@@ -395,20 +395,20 @@ public class MutationOptimizer : MonoBehaviour
 					// Minus Epsilon
 					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 1.0f);
 					CreateNewRandomMutation(0);
-					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+					if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f)
 						CreateNewRandomMutation(1);
 					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedMinus, optimRenderTargetMutatedMinus, j == 0 ? true : false);
 
 					// Plus Epsilon
 					mutationOptimizerCS.SetFloat("_IsAntitheticMutation", 0.0f);
 					CreateNewRandomMutation(0);
-					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+					if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f)
 						CreateNewRandomMutation(1);
 					RenderProceduralPrimitivesOptimScene(cameraOptim, primitiveBufferMutated, resolvedFrameMutatedPlus, optimRenderTarget, false);
 
 					// Accumulate Gradients
 					AccumulateOptimizationStep(0, k);
-					if (optimizeEnvMap == true && learningRateEnvMap > 0.0f)
+					if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f)
 						AccumulateOptimizationStep(1, k);
 				}
 			}
@@ -427,7 +427,7 @@ public class MutationOptimizer : MonoBehaviour
 				PerformPrimitiveResampling(0);
 			ResetOptimizationStep(0);
 
-			if (optimizeEnvMap == true)
+			if (backgroundMode == BackgroundMode.EnvMap)
 			{
 				ApplyOptimizationStep(1);
 				ResetOptimizationStep(1);
@@ -581,7 +581,7 @@ public class MutationOptimizer : MonoBehaviour
 			Matrix4x4 cameraVP = GL.GetGPUProjectionMatrix(Camera.current.projectionMatrix, true) * Camera.current.worldToCameraMatrix;
 
 			// Draw env map first
-			if (optimizeEnvMap == true)
+			if (backgroundMode == BackgroundMode.EnvMap)
 			{
 				Matrix4x4 invCameraVP = cameraVP.inverse;
 				envMapMaterial.SetInt("_EnvMapResolution", envMapResolution);
@@ -635,7 +635,7 @@ public class MutationOptimizer : MonoBehaviour
 		primitiveRendererCS.Dispatch(kernelClearRenderTarget, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
 		// Pre-blit env map to color resolve target // TODO : won't work with Sorted Alpha
-		if (optimizeEnvMap == true)
+		if (backgroundMode == BackgroundMode.EnvMap)
 		{
 			Matrix4x4 invCameraVP = cameraVP.inverse;
 			envMapMaterial.SetInt("_EnvMapResolution", envMapResolution);
@@ -663,7 +663,7 @@ public class MutationOptimizer : MonoBehaviour
 			// Render
 			Graphics.SetRenderTarget(idRenderTargetToUse.colorBuffer, idRenderTargetToUse.depthBuffer);
 			GL.Clear(true, true, depthIDClearColor, 1.0f);
-			if (optimizeEnvMap == true)
+			if (backgroundMode == BackgroundMode.EnvMap)
 			{
 				envMapMaterial.SetFloat("_DoColorOrViewDir", 1.0f);
 				Graphics.Blit(null, idRenderTargetToUse, envMapMaterial);
@@ -874,7 +874,7 @@ public class MutationOptimizer : MonoBehaviour
 					mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 					if (transparencyMode != TransparencyMode.None)
 						mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
-					if (optimizeEnvMap == true)
+					if (backgroundMode == BackgroundMode.EnvMap)
 						mutationOptimizerCS.SetFloat("_LearningRateEnvMap", learningRateEnvMap * learningRateModifier);
 				}
 			}
@@ -890,7 +890,7 @@ public class MutationOptimizer : MonoBehaviour
 				if (useAlternateTrianglePosition == true && learningRateOffsets > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateOffsets", learningRateOffsets));
 				if (learningRateColor > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateColor", learningRateColor));
 				if (transparencyMode != TransparencyMode.None && learningRateAlpha > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateAlpha", learningRateAlpha));
-				if (optimizeEnvMap == true && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
+				if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
 				int currentParam = currentParameterGroup % usedParams.Count;
 				mutationOptimizerCS.SetFloat(usedParams[currentParam].Item1, usedParams[currentParam].Item2 * learningRateModifier);
 				optimStepsSeparateCount = usedParams.Count;
@@ -1199,7 +1199,7 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetVector("_ColmapTrimAABBMin", colmapTrimBounds.min);
 		computeShader.SetVector("_ColmapTrimAABBMax", colmapTrimBounds.max);
 
-		computeShader.SetFloat("_DoEnvMapOptimze", optimizeEnvMap == true ? 1.0f : 0.0f);
+		computeShader.SetInt("_BackgroundMode", (int)backgroundMode);
 		computeShader.SetInt("_EnvMapResolution", envMapResolution);
 
 		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
@@ -1282,7 +1282,7 @@ public class MutationOptimizer : MonoBehaviour
 		InitPrimitiveBuffer();
 
 		// Special Env Map mode
-		if (optimizeEnvMap == true)
+		if (backgroundMode == BackgroundMode.EnvMap)
 		{
 			InitEnvMapPrimitiveBuffer(ref primitiveBuffer[1]);
 		}
@@ -1292,7 +1292,7 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(mutationOptimizerCS, true, true, true);
 		InitAllOptimBuffers();
 		ResetOptimizationStep(0);
-		if (optimizeEnvMap == true)
+		if (backgroundMode == BackgroundMode.EnvMap)
 			ResetOptimizationStep(1);
 		ResetKeywords(rasterMaterial, true, true, true);
 		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
@@ -1410,7 +1410,7 @@ public class MutationOptimizer : MonoBehaviour
 		ZeroInitBuffer(optimStepCounterBuffer[0]);
 
 		// Special Env Map mode
-		if (optimizeEnvMap == true)
+		if (backgroundMode == BackgroundMode.EnvMap)
 		{
 			int primitiveByteSize2 = 3 * 4;
 			optimStepGradientsBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
@@ -2447,6 +2447,13 @@ public class MutationOptimizer : MonoBehaviour
 		TwoBands,
 		ThreeBands,
 		FourBands
+	}
+
+	public enum BackgroundMode
+	{
+		Black,
+		RandomColor,
+		EnvMap
 	}
 
 	public enum LossMode

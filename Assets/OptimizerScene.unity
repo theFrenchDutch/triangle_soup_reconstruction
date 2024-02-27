@@ -171,7 +171,7 @@ MonoBehaviour:
   primitiveCount: 16000
   primitiveInitSize: 0.05
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
+  initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
@@ -205,7 +205,7 @@ MonoBehaviour:
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
-  parameterSeparationMode: 1
+  parameterSeparationMode: 2
   debugManualColmapChoice: -1
   globalLearningRate: 1
   beta1: 0.9
@@ -216,7 +216,7 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 1
+  structuralLossWeight: 5
   doPrimitiveResampling: 1
   resamplingInterval: 1
   optimStepsUnseenBeforeKill: 8

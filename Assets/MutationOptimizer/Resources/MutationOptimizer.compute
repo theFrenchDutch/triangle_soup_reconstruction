@@ -99,7 +99,6 @@ float3 _ColmapTrimAABBMax;
 
 float _AlphaContributingCutoff;
 float _DoGradientDescent;
-float _DoEnvMapOptimze;
 float _StructuralLossWeight;
 
 
