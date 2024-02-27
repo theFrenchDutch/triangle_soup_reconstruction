@@ -1048,8 +1048,6 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	_PrimitiveBuffer[primitiveID1].colors[0] = primitive1.colors[idBase];
 	_PrimitiveBuffer[primitiveID1].colors[1] = primitive1.colors[idLeft];
 	_PrimitiveBuffer[primitiveID1].colors[2] = primitive1.colors[idRight];
-	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
-	_PrimitiveBuffer[primitiveID1].color = primitive1.color;
 #else
 	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
 	_PrimitiveBuffer[primitiveID1].color = primitive1.color;

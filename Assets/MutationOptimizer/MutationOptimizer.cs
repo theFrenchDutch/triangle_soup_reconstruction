@@ -65,6 +65,8 @@ public class MutationOptimizer : MonoBehaviour
 	private int optimStepsSeparateCount = 1;
 	private float2 learningRateGlobalStartEnd = -1.0f;
 	private float2 learningRatePositionStartEnd = -1.0f;
+	private float2 learningRateRotationStartEnd = -1.0f;
+	private float2 learningRateOffsetsStartEnd = -1.0f;
 	private int doublingCounter = 0;
 	private Bounds colmapTrimBounds;
 	private string exportPath = "";
@@ -251,6 +253,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (learningRatePositionStartEnd.x < 0.0f)
 		{
 			learningRatePositionStartEnd = new float2(learningRatePosition * lrGeometryStartMulAndSpeed.x, learningRatePosition);
+			learningRateRotationStartEnd = new float2(learningRateRotation * lrGeometryStartMulAndSpeed.x, learningRateRotation);
+			learningRateOffsetsStartEnd = new float2(learningRateOffsets * lrGeometryStartMulAndSpeed.x, learningRateOffsets);
 		}
 		if (learningRateGlobalStartEnd.x < 0.0f)
 		{
@@ -824,6 +828,8 @@ public class MutationOptimizer : MonoBehaviour
 		if (lrGeometryStartMulAndSpeed.x != 0 && lrGeometryStartMulAndSpeed.y != 0)
 		{
 			learningRatePosition = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRatePositionStartEnd.x - learningRatePositionStartEnd.y) + learningRatePositionStartEnd.y;
+			learningRateRotation = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRateRotationStartEnd.x - learningRateRotationStartEnd.y) + learningRateRotationStartEnd.y;
+			learningRateOffsets = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRateOffsetsStartEnd.x - learningRateOffsetsStartEnd.y) + learningRateOffsetsStartEnd.y;
 		}
 
 		if (lrGlobalStartMulAndSpeed.x != 0 && lrGlobalStartMulAndSpeed.y != 0)

@@ -167,11 +167,11 @@ MonoBehaviour:
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  useAlternateTrianglePosition: 0
-  primitiveCount: 16000
+  useAlternateTrianglePosition: 1
+  primitiveCount: 1000
   primitiveInitSize: 0.05
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 1
+  initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
@@ -182,7 +182,7 @@ MonoBehaviour:
   maxFragmentsPerPixel: 8
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 2, y: 2}
-  optimizeEnvMap: 0
+  backgroundMode: 0
   envMapResolution: 64
   displayAdaptiveTriangleBlurring: 0
   optimAdaptiveTriangleBlurring: 0
@@ -193,9 +193,9 @@ MonoBehaviour:
   separateFreeViewCamera: 1
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 0, y: 0.001}
-  doublingAmount: 0
-  doubleEveryXSteps: 250
+  lrGeometryStartMulAndSpeed: {x: 500, y: 0.001}
+  doublingAmount: 7
+  doubleEveryXSteps: 1000
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
@@ -205,20 +205,20 @@ MonoBehaviour:
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
-  parameterSeparationMode: 2
+  parameterSeparationMode: 1
   debugManualColmapChoice: -1
-  globalLearningRate: 1
+  globalLearningRate: 0.342
   beta1: 0.9
   beta2: 0.999
-  learningRatePosition: 0.001
-  learningRateRotation: 0.01
-  learningRateOffsets: 0.0001
+  learningRatePosition: 0.00001
+  learningRateRotation: 0.0001
+  learningRateOffsets: 0.000001
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
   structuralLossWeight: 5
   doPrimitiveResampling: 1
-  resamplingInterval: 1
+  resamplingInterval: 25
   optimStepsUnseenBeforeKill: 8
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0

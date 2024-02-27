@@ -728,8 +728,6 @@ struct PrimitiveData
 	Color colors[3];
 };
 
-float _LearningRatePosition;
-
 PrimitiveData ZeroInitPrimitiveData()
 {
 	PrimitiveData primitiveData;
@@ -810,8 +808,6 @@ struct PrimitiveData
 	Geometry geometry;
 	Color color;
 };
-
-float _LearningRatePosition;
 
 PrimitiveData ZeroInitPrimitiveData()
 {
