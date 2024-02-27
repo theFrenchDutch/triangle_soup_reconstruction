@@ -168,8 +168,8 @@ MonoBehaviour:
   colmapUseMasking: 0
   optimPrimitive: 1
   useAlternateTrianglePosition: 0
-  primitiveCount: 100000
-  primitiveInitSize: 0.001
+  primitiveCount: 30000
+  primitiveInitSize: 0.01
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
@@ -199,16 +199,16 @@ MonoBehaviour:
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 2
+  optimSupersampling: 1
   pixelCountNormalization: 0
   doAlphaLoss: 1
-  doStructuralLoss: 0
+  doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
-  globalLearningRate: 0.25
+  globalLearningRate: 1
   beta1: 0.9
   beta2: 0.999
   learningRatePosition: 0.001
