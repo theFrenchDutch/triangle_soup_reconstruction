@@ -365,8 +365,8 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 		{
 			// Minimum pixel change considering current camera VP matrix
 			//randomMutation *= pixelSize;
-			randomMutation *= 0.1;
-			//randomMutation *= learningRatesFloats[i];
+			//randomMutation *= 0.00001;
+			randomMutation *= learningRatesFloats[i];
 			primitiveDataFloats[i] += randomMutation;
 		}
 		else if(learningRatesFloats[i] == _LearningRateColor)
@@ -1080,7 +1080,7 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 
 	// COLOR
 #ifdef TRIANGLE_GRADIENT
-	Color newColor = primitive1.colors[idLeft];// (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
+	Color newColor = InterpolateColor2(primitive1.colors[idLeft], primitive1.colors[idRight]);
 	_PrimitiveBuffer[primitiveID0].colors[0] = primitive1.colors[idBase];
 	_PrimitiveBuffer[primitiveID0].colors[1] = primitive1.colors[idLeft];
 	_PrimitiveBuffer[primitiveID0].colors[2] = newColor;
@@ -1147,7 +1147,7 @@ void TripleResampling(uint3 id : SV_DispatchThreadID)
 
 	// COLOR
 #ifdef TRIANGLE_GRADIENT
-	Color barycenterColor = primitive1.colors[0];// (primitive1.colors[0] + primitive1.colors[1] + primitive1.colors[2]) / 3.0;
+	Color barycenterColor = InterpolateColor3(primitiveA.colors[0], primitiveA.colors[1], primitiveA.colors[2]);
 	_PrimitiveBuffer[primitiveIDA].colors[0] = primitiveA.colors[0];
 	_PrimitiveBuffer[primitiveIDA].colors[1] = primitiveA.colors[1];
 	_PrimitiveBuffer[primitiveIDA].colors[2] = barycenterColor;

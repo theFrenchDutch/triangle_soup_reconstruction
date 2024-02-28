@@ -2495,11 +2495,14 @@ public class MutationOptimizer : MonoBehaviour
 			// Color
 			if (sphericalHarmonicsMode == SphericalHarmonicsMode.None) // else no need to do anything, all init to zero
 			{
-				Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
-				float3 color = new float3(randColor.r, randColor.g, randColor.b);
-				//float3 color = new float3(0.5f, 0.5f, 0.5f);
-				//float3 color = new float3(0.0f, 0.0f, 0.0f);
-				randData[i * primitiveFloatSize + offset + 0] = color.x; randData[i * primitiveFloatSize + offset + 1] = color.y; randData[i * primitiveFloatSize + offset + 2] = color.z; offset += 3;
+				for (int j = 0; j < (optimPrimitive == PrimitiveType.TrianglesGradientUnlit ? 3 : 1); j++)
+				{
+					Color randColor = UnityEngine.Random.ColorHSV(0, 1, 0, 1);
+					float3 color = new float3(randColor.r, randColor.g, randColor.b);
+					//float3 color = new float3(0.5f, 0.5f, 0.5f);
+					//float3 color = new float3(0.0f, 0.0f, 0.0f);
+					randData[i * primitiveFloatSize + offset + 0] = color.x; randData[i * primitiveFloatSize + offset + 1] = color.y; randData[i * primitiveFloatSize + offset + 2] = color.z; offset += 3;
+				}
 			}
 		}
 

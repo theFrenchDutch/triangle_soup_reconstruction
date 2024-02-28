@@ -648,6 +648,72 @@ Color PostProcessColor(Color colorData)
 	return colorData;
 }
 
+Color InterpolateColor2(Color color0, Color color1)
+{
+	Color color;
+
+#ifndef OPAQUE_RENDER
+	color.alpha = color0.alpha * 0.5 + color1.alpha * 0.5;
+#endif
+	color.sh0 = color0.sh0 * 0.5 + color1.sh0 * 0.5;
+#if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	color.sh1 = color0.sh1 * 0.5 + color1.sh1 * 0.5;
+	color.sh2 = color0.sh2 * 0.5 + color1.sh2 * 0.5;
+	color.sh3 = color0.sh3 * 0.5 + color1.sh3 * 0.5;
+#endif
+#if defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	color.sh4 = color0.sh4 * 0.5 + color1.sh4 * 0.5;
+	color.sh5 = color0.sh5 * 0.5 + color1.sh5 * 0.5;
+	color.sh6 = color0.sh6 * 0.5 + color1.sh6 * 0.5;
+	color.sh7 = color0.sh7 * 0.5 + color1.sh7 * 0.5;
+	color.sh8 = color0.sh8 * 0.5 + color1.sh8 * 0.5;
+#endif
+#if defined(SPHERICAL_HARMONICS_4)
+	color.sh9 = color0.sh9 * 0.5 + color1.sh9 * 0.5;
+	color.sh10 = color0.sh10 * 0.5 + color1.sh10 * 0.5;
+	color.sh11 = color0.sh11 * 0.5 + color1.sh11 * 0.5;
+	color.sh12 = color0.sh12 * 0.5 + color1.sh12 * 0.5;
+	color.sh13 = color0.sh13 * 0.5 + color1.sh13 * 0.5;
+	color.sh14 = color0.sh14 * 0.5 + color1.sh14 * 0.5;
+	color.sh15 = color0.sh15 * 0.5 + color1.sh15 * 0.5;
+#endif
+
+	return color;
+}
+
+Color InterpolateColor3(Color color0, Color color1, Color color2)
+{
+	Color color;
+
+#ifndef OPAQUE_RENDER
+	color.alpha = color0.alpha * 0.3333 + color1.alpha * 0.3333 + color2.alpha * 0.3333;
+#endif
+	color.sh0 = color0.sh0 * 0.3333 + color1.sh0 * 0.3333 + color2.sh0 * 0.3333;
+#if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	color.sh1 = color0.sh1 * 0.3333 + color1.sh1 * 0.3333 + color2.sh1 * 0.3333;
+	color.sh2 = color0.sh2 * 0.3333 + color1.sh2 * 0.3333 + color2.sh2 * 0.3333;
+	color.sh3 = color0.sh3 * 0.3333 + color1.sh3 * 0.3333 + color2.sh3 * 0.3333;
+#endif
+#if defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	color.sh4 = color0.sh4 * 0.3333 + color1.sh4 * 0.3333 + color2.sh4 * 0.3333;
+	color.sh5 = color0.sh5 * 0.3333 + color1.sh5 * 0.3333 + color2.sh5 * 0.3333;
+	color.sh6 = color0.sh6 * 0.3333 + color1.sh6 * 0.3333 + color2.sh6 * 0.3333;
+	color.sh7 = color0.sh7 * 0.3333 + color1.sh7 * 0.3333 + color2.sh7 * 0.3333;
+	color.sh8 = color0.sh8 * 0.3333 + color1.sh8 * 0.3333 + color2.sh8 * 0.3333;
+#endif
+#if defined(SPHERICAL_HARMONICS_4)
+	color.sh9 = color0.sh9 * 0.3333 + color1.sh9 * 0.3333 + color2.sh9 * 0.3333;
+	color.sh10 = color0.sh10 * 0.3333 + color1.sh10 * 0.3333 + color2.sh10 * 0.3333;
+	color.sh11 = color0.sh11 * 0.3333 + color1.sh11 * 0.3333 + color2.sh11 * 0.3333;
+	color.sh12 = color0.sh12 * 0.3333 + color1.sh12 * 0.3333 + color2.sh12 * 0.3333;
+	color.sh13 = color0.sh13 * 0.3333 + color1.sh13 * 0.3333 + color2.sh13 * 0.3333;
+	color.sh14 = color0.sh14 * 0.3333 + color1.sh14 * 0.3333 + color2.sh14 * 0.3333;
+	color.sh15 = color0.sh15 * 0.3333 + color1.sh15 * 0.3333 + color2.sh15 * 0.3333;
+#endif
+
+	return color;
+}
+
 
 
 

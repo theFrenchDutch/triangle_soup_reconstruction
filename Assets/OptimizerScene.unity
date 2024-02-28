@@ -166,7 +166,7 @@ MonoBehaviour:
   target3DCOLMAPFolder: garden
   colmapRescaler: 1
   colmapUseMasking: 0
-  optimPrimitive: 0
+  optimPrimitive: 1
   useAlternateTriangleDefinition: 0
   primitiveCount: 10000
   primitiveInitSize: 0.01
@@ -195,21 +195,21 @@ MonoBehaviour:
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.0001}
-  primitiveDoublingCountAndInterval: {x: 0, y: 500}
-  resolutionDoublingCountAndInterval: {x: 0, y: 5000}
+  primitiveDoublingCountAndInterval: {x: 0, y: 0}
+  resolutionDoublingCountAndInterval: {x: 0, y: 0}
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
   optimResolutionFactor: 1
   pixelCountNormalization: 0
   doAlphaLoss: 1
-  doStructuralLoss: 0
+  doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
-  globalLearningRate: 1
+  globalLearningRate: 0.25
   beta1: 0.9
   beta2: 0.999
   learningRatePosition: 0.001
@@ -218,11 +218,11 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0
+  structuralLossWeight: 0.75
   structuralLossDistFactor: 1
-  doPrimitiveResampling: 0
+  doPrimitiveResampling: 1
   resamplingInterval: 25
-  optimStepsUnseenBeforeKill: 32
+  optimStepsUnseenBeforeKill: 8
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
   totalElapsedSeconds: 0
