@@ -160,16 +160,16 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 1
+  targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: garden
+  target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 1
   useAlternateTriangleDefinition: 0
-  primitiveCount: 10000
-  primitiveInitSize: 0.01
+  primitiveCount: 100000
+  primitiveInitSize: 0.001
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
@@ -201,7 +201,7 @@ MonoBehaviour:
   lossMode: 1
   gradientsWarmupSteps: 16
   optimResolutionFactor: 1
-  pixelCountNormalization: 0
+  pixelCountNormalization: 1
   doAlphaLoss: 1
   doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
@@ -209,7 +209,7 @@ MonoBehaviour:
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
-  globalLearningRate: 0.25
+  globalLearningRate: 0.5
   beta1: 0.9
   beta2: 0.999
   learningRatePosition: 0.001
@@ -218,11 +218,11 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.75
+  structuralLossWeight: 0.5
   structuralLossDistFactor: 1
   doPrimitiveResampling: 1
   resamplingInterval: 25
-  optimStepsUnseenBeforeKill: 8
+  optimStepsUnseenBeforeKill: 3
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
   totalElapsedSeconds: 0

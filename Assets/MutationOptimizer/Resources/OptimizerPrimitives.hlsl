@@ -714,6 +714,40 @@ Color InterpolateColor3(Color color0, Color color1, Color color2)
 	return color;
 }
 
+float SumColorFloats(Color color)
+{
+	float sum = 0.0;
+
+#ifndef OPAQUE_RENDER
+	sum += color.alpha;
+#endif
+	sum += color.sh0.r + color.sh0.g + color.sh0.b;
+#if defined(SPHERICAL_HARMONICS_2) || defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	sum += color.sh0.r + color.sh0.g + color.sh0.b;
+	sum += color.sh1.r + color.sh1.g + color.sh1.b;
+	sum += color.sh2.r + color.sh2.g + color.sh2.b;
+#endif
+#if defined(SPHERICAL_HARMONICS_3) || defined(SPHERICAL_HARMONICS_4)
+	sum += color.sh3.r + color.sh3.g + color.sh3.b;
+	sum += color.sh4.r + color.sh4.g + color.sh4.b;
+	sum += color.sh5.r + color.sh5.g + color.sh5.b;
+	sum += color.sh6.r + color.sh6.g + color.sh6.b;
+	sum += color.sh7.r + color.sh7.g + color.sh7.b;
+	sum += color.sh8.r + color.sh8.g + color.sh8.b;
+#endif
+#if defined(SPHERICAL_HARMONICS_4)
+	sum += color.sh9.r + color.sh9.g + color.sh9.b;
+	sum += color.sh10.r + color.sh10.g + color.sh10.b;
+	sum += color.sh11.r + color.sh11.g + color.sh11.b;
+	sum += color.sh12.r + color.sh12.g + color.sh12.b;
+	sum += color.sh13.r + color.sh13.g + color.sh13.b;
+	sum += color.sh14.r + color.sh14.g + color.sh14.b;
+	sum += color.sh15.r + color.sh15.g + color.sh15.b;
+#endif
+
+	return sum;
+}
+
 
 
 

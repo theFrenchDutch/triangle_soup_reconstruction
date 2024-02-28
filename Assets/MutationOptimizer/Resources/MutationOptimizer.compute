@@ -937,11 +937,21 @@ void InitBitonicSortValidPrimitives(uint threadID : SV_DispatchThreadID)
 	if (threadID < validCount)
 	{
 		sort.x = _ReadValidPrimitiveIDs[threadID];
+
+		// Sort : biggest first
 		PrimitiveData primitiveData = _PrimitiveBuffer[sort.x];
-		sort.y = GetTriangleArea(primitiveData.geometry) * 65536;
-		/*PrimitiveData primitiveGradients = _PrimitiveGradientsMoments1[sort.x];
-		float posGradientMagnitude = length(primitiveGradients.positions[0] + primitiveGradients.positions[1] + primitiveGradients.positions[2]);
-		sort.y = posGradientMagnitude * 65536;*/
+		sort.y = GetTriangleArea(primitiveData.geometry) * 256 * 256;
+
+		// Sort : most color gardient variance first
+		PrimitiveData primitiveGradients = _PrimitiveGradientsMoments2[sort.x];
+		#ifdef TRIANGLE_GRADIENT
+			float colorGradientVariance = SumColorFloats(primitiveGradients.colors[0]) + SumColorFloats(primitiveGradients.colors[1]) + SumColorFloats(primitiveGradients.colors[2]);
+		#else
+			float colorGradientVariance = SumColorFloats(primitiveGradients.color);
+		#endif
+		//sort.y = colorGradientVariance * 256 * 256;
+
+		// Sort : random
 		//sort.y = WangHash((_CurrentOptimStep * _PrimitiveCount) + sort.x);
 	}
 	else

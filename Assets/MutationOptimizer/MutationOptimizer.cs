@@ -1050,6 +1050,7 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetInt("_PrimitiveCountPow2", sortedValidPrimitiveIDBuffer.count);
 		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_PrimitiveBuffer", primitiveBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_ReadValidPrimitiveIDs", appendValidIDsBuffer);
 		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_SortedValidPrimitiveIDs", sortedValidPrimitiveIDBuffer);
 		mutationOptimizerCS.SetBuffer(kernelInitBitonicSortValidPrimitives, "_ArgsValidPrimitiveIDs", argsValidIDsBuffer);
