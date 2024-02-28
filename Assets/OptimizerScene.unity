@@ -163,27 +163,28 @@ MonoBehaviour:
   targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: lego_upper
+  target3DCOLMAPFolder: train
   colmapRescaler: 1
   colmapUseMasking: 0
-  optimPrimitive: 1
-  useAlternateTrianglePosition: 0
-  primitiveCount: 30000
+  optimPrimitive: 0
+  useAlternateTriangleDefinition: 0
+  primitiveCount: 25000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
+  initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
-  colmapOnePrimitivePerInitPoint: 0
+  colmapOnePrimitivePerInitPoint: 1
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 9999
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
-  sphericalHarmonicsMode: 0
+  sphericalHarmonicsMode: 1
   transparencyMode: 0
   maxFragmentsPerPixel: 8
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 2, y: 2}
-  backgroundMode: 0
-  envMapResolution: 256
+  backgroundMode: 2
+  backgroundColor: {r: 0.44705883, g: 0.57254905, b: 0.8666667, a: 1}
+  envMapResolution: 128
   displayAdaptiveTriangleBlurring: 0
   optimAdaptiveTriangleBlurring: 0
   reset: 0
@@ -201,10 +202,10 @@ MonoBehaviour:
   gradientsWarmupSteps: 16
   optimSupersampling: 1
   pixelCountNormalization: 0
-  doAlphaLoss: 1
-  doStructuralLoss: 1
+  doAlphaLoss: 0
+  doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 32
+  viewsPerOptimStep: 64
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1

@@ -71,7 +71,7 @@ RWStructuredBuffer<uint> _SortedPrimitiveIDs;
 RWStructuredBuffer<uint> _SortedPrimitiveDistances;
 float4x4 _SortMatrixMV;
 
-float4 _RandomBackgroundColor;
+float4 _BackgroundColor;
 float _DoAlphaLoss;
 float _BackgroundMode;
 
@@ -101,6 +101,10 @@ void ResolveOpaqueRender(uint3 threadID : SV_DispatchThreadID)
 	float4 depthIDBufferFetch = _DepthIDBufferRW[pixelCoord];
 	uint primitiveID = asuint(depthIDBufferFetch.r);
 
+	// Background
+	if (_BackgroundMode != 2)
+		_ResolvedFrameRW[pixelCoord] = float4(_BackgroundColor.rgb, _DoAlphaLoss > 0.5 ? 0.0 : 1.0);
+
 	// Hit a primitive
 	if (primitiveID < _PrimitiveCount)
 	{
@@ -121,10 +125,6 @@ void ResolveOpaqueRender(uint3 threadID : SV_DispatchThreadID)
 		_ResolvedFrameRW[pixelCoord] += newColor / (float)(_MaxFragmentsPerPixel);
 		_PerPixelFragmentList[flatPixelCoord * _MaxFragmentsPerPixel + _CurrentStochasticFrame] = depthIDBufferFetch;
 	#endif
-	}
-	else if (_BackgroundMode == 1)
-	{
-		_ResolvedFrameRW[pixelCoord] = float4(_RandomBackgroundColor.rgb, _DoAlphaLoss > 0.5 ? 0.0 : 1.0);
 	}
 }
 

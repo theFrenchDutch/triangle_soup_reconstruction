@@ -126,7 +126,7 @@ public class MutationOptimizer : MonoBehaviour
 	public float colmapRescaler = 1.0f;
 	public bool colmapUseMasking = false;
 	public PrimitiveType optimPrimitive = PrimitiveType.TrianglesSolidUnlit;
-	public bool useAlternateTrianglePosition = false;
+	public bool useAlternateTriangleDefinition = false;
 	public int primitiveCount = 1;
 	public float primitiveInitSize = 1.0f;
 	public int primitiveInitSeed = -1;
@@ -141,7 +141,8 @@ public class MutationOptimizer : MonoBehaviour
 	public int maxFragmentsPerPixel = 1;
 	[Range(0.0f, 1.0f)] public float alphaContributingCutoff = 0.9f;
 	public Vector2 randomViewZoomRange = Vector2.one;
-	public BackgroundMode backgroundMode = BackgroundMode.Black;
+	public BackgroundMode backgroundMode = BackgroundMode.Color;
+	public Color backgroundColor = Color.black;
 	public int envMapResolution = 256;
 	public bool displayAdaptiveTriangleBlurring = false;
 	public bool optimAdaptiveTriangleBlurring = false;
@@ -274,6 +275,7 @@ public class MutationOptimizer : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.F)) separateFreeViewCamera = !separateFreeViewCamera;
 		if (Input.GetKeyDown(KeyCode.F1)) displayMode = DisplayMode.Optimization;
 		if (Input.GetKeyDown(KeyCode.F2)) displayMode = DisplayMode.Target;
+		if (Input.GetKeyDown(KeyCode.T)) debugTriangleView = !debugTriangleView;
 
 		// Handle critical parameter change (reset everything and restart)
 		if (ChecksResetEverythingConditions() == true || reset == true)
@@ -385,7 +387,8 @@ public class MutationOptimizer : MonoBehaviour
 			// Accumulate gradients for this view step
 			mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
 			primitiveRendererCS.SetInt("_CurrentFrame", currentViewPoint);
-			primitiveRendererCS.SetVector("_RandomBackgroundColor", UnityEngine.Random.ColorHSV());
+			if (backgroundMode == BackgroundMode.RandomColor)
+				primitiveRendererCS.SetVector("_BackgroundColor", UnityEngine.Random.ColorHSV());
 			for (int j = 0; j < antitheticMutationsPerFrame; j++)
 			{
 				mutationOptimizerCS.SetInt("_CurrentMutation", j);
@@ -893,8 +896,8 @@ public class MutationOptimizer : MonoBehaviour
 			{
 				List<Tuple<string, float>> usedParams = new List<Tuple<string, float>>();
 				if (learningRatePosition > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRatePosition", learningRatePosition));
-				if (useAlternateTrianglePosition == true && learningRateRotation > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateRotation", learningRateRotation));
-				if (useAlternateTrianglePosition == true && learningRateOffsets > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateOffsets", learningRateOffsets));
+				if (useAlternateTriangleDefinition == true && learningRateRotation > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateRotation", learningRateRotation));
+				if (useAlternateTriangleDefinition == true && learningRateOffsets > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateOffsets", learningRateOffsets));
 				if (learningRateColor > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateColor", learningRateColor));
 				if (transparencyMode != TransparencyMode.None && learningRateAlpha > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateAlpha", learningRateAlpha));
 				if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
@@ -1207,6 +1210,7 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetVector("_ColmapTrimAABBMax", colmapTrimBounds.max);
 
 		computeShader.SetInt("_BackgroundMode", (int)backgroundMode);
+		computeShader.SetVector("_BackgroundColor", backgroundColor);
 		computeShader.SetInt("_EnvMapResolution", envMapResolution);
 
 		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
@@ -1495,9 +1499,9 @@ public class MutationOptimizer : MonoBehaviour
 			bool TRIANGLE_SOLID = keywords.Contains("TRIANGLE_SOLID");
 			bool TRIANGLE_GRADIENT = keywords.Contains("TRIANGLE_GRADIENT");
 			bool TRIANGLE_GAUSSIAN = keywords.Contains("TRIANGLE_GAUSSIAN");
-			if (NORMAL_POSITIONS != !useAlternateTrianglePosition)
+			if (NORMAL_POSITIONS != !useAlternateTriangleDefinition)
 				return false;
-			if (ALTERNATE_POSITIONS != useAlternateTrianglePosition)
+			if (ALTERNATE_POSITIONS != useAlternateTriangleDefinition)
 				return false;
 			if (TRIANGLE_SOLID != (optimPrimitive == PrimitiveType.TrianglesSolidUnlit))
 				return false;
@@ -1548,9 +1552,9 @@ public class MutationOptimizer : MonoBehaviour
 			computeShader.DisableKeyword("TRIANGLE_SOLID");
 			computeShader.DisableKeyword("TRIANGLE_GRADIENT");
 			computeShader.DisableKeyword("TRIANGLE_GAUSSIAN");
-			if (useAlternateTrianglePosition == false)
+			if (useAlternateTriangleDefinition == false)
 				computeShader.EnableKeyword("NORMAL_POSITIONS");
-			if (useAlternateTrianglePosition == true)
+			if (useAlternateTriangleDefinition == true)
 				computeShader.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				computeShader.EnableKeyword("TRIANGLE_SOLID");
@@ -1602,9 +1606,9 @@ public class MutationOptimizer : MonoBehaviour
 			material.DisableKeyword("TRIANGLE_SOLID");
 			material.DisableKeyword("TRIANGLE_GRADIENT");
 			material.DisableKeyword("TRIANGLE_GAUSSIAN");
-			if (useAlternateTrianglePosition == false)
+			if (useAlternateTriangleDefinition == false)
 				material.EnableKeyword("NORMAL_POSITIONS");
-			if (useAlternateTrianglePosition == true)
+			if (useAlternateTriangleDefinition == true)
 				material.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				material.EnableKeyword("TRIANGLE_SOLID");
@@ -2216,7 +2220,7 @@ public class MutationOptimizer : MonoBehaviour
 	public int GetPrimitiveFloatSize(PrimitiveType type)
 	{
 		int positionSize = 9;
-		if (useAlternateTrianglePosition == true)
+		if (useAlternateTriangleDefinition == true)
 			positionSize = 13;
 
 		int alphaSize = 0;
@@ -2339,6 +2343,7 @@ public class MutationOptimizer : MonoBehaviour
 		// Init data on CPU
 		int primitiveFloatSize = GetPrimitiveFloatSize(optimPrimitive);
 		float[] randData = new float[primitiveCount * primitiveFloatSize];
+
 		for (int i = 0; i < primitiveCount; i++)
 		{
 			int offset = 0;
@@ -2346,7 +2351,7 @@ public class MutationOptimizer : MonoBehaviour
 			// Position
 			float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
 			float3 randPos = positions[i];
-			if (useAlternateTrianglePosition == true)
+			if (useAlternateTriangleDefinition == true)
 			{
 				// Position
 				randData[i * primitiveFloatSize + offset + 0] = randPos.x; randData[i * primitiveFloatSize + offset + 1] = randPos.y; randData[i * primitiveFloatSize + offset + 2] = randPos.z; offset += 3;
@@ -2460,7 +2465,7 @@ public class MutationOptimizer : MonoBehaviour
 
 	public enum BackgroundMode
 	{
-		Black,
+		Color,
 		RandomColor,
 		EnvMap
 	}

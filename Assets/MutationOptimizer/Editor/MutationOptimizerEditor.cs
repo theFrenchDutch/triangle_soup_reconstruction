@@ -16,7 +16,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty colmapRescaler;
 	SerializedProperty colmapUseMasking;
 	SerializedProperty optimPrimitive;
-	SerializedProperty useAlternateTrianglePosition;
+	SerializedProperty useAlternateTriangleDefinition;
 	SerializedProperty primitiveCount;
 	SerializedProperty primitiveInitSize;
 	SerializedProperty primitiveInitSeed;
@@ -32,6 +32,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty alphaContributingCutoff;
 	SerializedProperty randomViewZoomRange;
 	SerializedProperty backgroundMode;
+	SerializedProperty backgroundColor;
 	SerializedProperty envMapResolution;
 	SerializedProperty displayAdaptiveTriangleBlurring;
 	SerializedProperty optimAdaptiveTriangleBlurring;
@@ -97,7 +98,7 @@ public class MutationOptimizerEditor : Editor
 		colmapRescaler = serializedObject.FindProperty("colmapRescaler");
 		colmapUseMasking = serializedObject.FindProperty("colmapUseMasking");
 		optimPrimitive = serializedObject.FindProperty("optimPrimitive");
-		useAlternateTrianglePosition = serializedObject.FindProperty("useAlternateTrianglePosition");
+		useAlternateTriangleDefinition = serializedObject.FindProperty("useAlternateTriangleDefinition");
 		primitiveCount = serializedObject.FindProperty("primitiveCount");
 		primitiveInitSize = serializedObject.FindProperty("primitiveInitSize");
 		primitiveInitSeed = serializedObject.FindProperty("primitiveInitSeed");
@@ -113,6 +114,7 @@ public class MutationOptimizerEditor : Editor
 		alphaContributingCutoff = serializedObject.FindProperty("alphaContributingCutoff");
 		randomViewZoomRange = serializedObject.FindProperty("randomViewZoomRange");
 		backgroundMode = serializedObject.FindProperty("backgroundMode");
+		backgroundColor = serializedObject.FindProperty("backgroundColor");
 		envMapResolution = serializedObject.FindProperty("envMapResolution");
 		displayAdaptiveTriangleBlurring = serializedObject.FindProperty("displayAdaptiveTriangleBlurring");
 		optimAdaptiveTriangleBlurring = serializedObject.FindProperty("optimAdaptiveTriangleBlurring");
@@ -245,7 +247,7 @@ public class MutationOptimizerEditor : Editor
 			EditorGUILayout.PropertyField(colmapUseMasking);
 		}
 		EditorGUILayout.PropertyField(optimPrimitive);
-		EditorGUILayout.PropertyField(useAlternateTrianglePosition);
+		EditorGUILayout.PropertyField(useAlternateTriangleDefinition);
 		EditorGUILayout.PropertyField(primitiveInitSeed);
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2)
 		{
@@ -278,6 +280,8 @@ public class MutationOptimizerEditor : Editor
 		if (targetMode.enumValueIndex == 1 || targetMode.enumValueIndex == 3)
 			EditorGUILayout.PropertyField(randomViewZoomRange);
 		EditorGUILayout.PropertyField(backgroundMode);
+		if (backgroundMode.enumValueIndex == 0)
+			EditorGUILayout.PropertyField(backgroundColor);
 		if (backgroundMode.enumValueIndex == 2)
 			EditorGUILayout.PropertyField(envMapResolution);
 		EditorGUILayout.PropertyField(displayAdaptiveTriangleBlurring);
@@ -338,7 +342,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(beta1);
 		EditorGUILayout.PropertyField(beta2);
 		EditorGUILayout.PropertyField(learningRatePosition);
-		if (useAlternateTrianglePosition.boolValue == true)
+		if (useAlternateTriangleDefinition.boolValue == true)
 		{
 			EditorGUILayout.PropertyField(learningRateRotation);
 			EditorGUILayout.PropertyField(learningRateOffsets);
@@ -346,7 +350,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
 			EditorGUILayout.PropertyField(learningRateAlpha);
-		if (backgroundMode.boolValue == true)
+		if (backgroundMode.enumValueIndex == 2)
 			EditorGUILayout.PropertyField(learningRateEnvMap);
 		if (doStructuralLoss.boolValue == true)
 			EditorGUILayout.PropertyField(structuralLossWeight);

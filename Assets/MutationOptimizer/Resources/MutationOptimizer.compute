@@ -369,9 +369,14 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 		else if(learningRatesFloats[i] == _LearningRateColor)
 		{
 			// Minimum pixel change considering gamma target
-			randomMutation *= (1.0 / 256.0);
-			float temp = pow(primitiveDataFloats[i], 2.2) + randomMutation;
-			primitiveDataFloats[i] = pow(temp, 1.0 / 2.2);
+			#ifdef SINGLE_COLOR
+				randomMutation *= (1.0 / 256.0);
+				float temp = pow(primitiveDataFloats[i], 2.2) + randomMutation;
+				primitiveDataFloats[i] = pow(temp, 1.0 / 2.2);
+			#else
+				randomMutation *= learningRatesFloats[i];
+				primitiveDataFloats[i] += randomMutation;
+			#endif
 		}
 		else
 		{
