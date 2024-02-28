@@ -67,7 +67,8 @@ public class MutationOptimizer : MonoBehaviour
 	private float2 learningRatePositionStartEnd = -1.0f;
 	private float2 learningRateRotationStartEnd = -1.0f;
 	private float2 learningRateOffsetsStartEnd = -1.0f;
-	private int doublingCounter = 0;
+	private int primitiveDoublingCounter = 0;
+	private int resolutionDoublingCounter = 0;
 	private Bounds colmapTrimBounds;
 	private string exportPath = "";
 	private bool isDoingWarmup = false;
@@ -154,15 +155,15 @@ public class MutationOptimizer : MonoBehaviour
 	public bool separateFreeViewCamera = true;
 	public bool debugTriangleView = false;
 
-	public Vector2 lrGlobalStartMulAndSpeed = new Vector2(0, 0);
-	public Vector2 lrGeometryStartMulAndSpeed = new Vector2(0, 0);
-	public int doublingAmount = 0;
-	public int doubleEveryXSteps = 0;
+	public Vector2 lrGlobalStartMulAndSpeed = Vector2.zero;
+	public Vector2 lrGeometryStartMulAndSpeed = Vector2.zero;
+	public Vector2Int primitiveDoublingCountAndInterval = Vector2Int.zero;
+	public Vector2Int resolutionDoublingCountAndInterval = Vector2Int.zero;
 
 	public Optimizer optimizer = Optimizer.Adam;
 	public LossMode lossMode = LossMode.L2;
 	public int gradientsWarmupSteps = 16;
-	public float optimSupersampling = 1;
+	public float optimResolutionFactor = 1;
 	public bool pixelCountNormalization = false;
 	public bool doAlphaLoss = true;
 	public bool doStructuralLoss = true;
@@ -182,6 +183,7 @@ public class MutationOptimizer : MonoBehaviour
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
 	[Range(0.0f, 1.0f)] public float structuralLossWeight = 0.5f;
+	[Range(0.0f, 2.0f)] public float structuralLossDistFactor = 1.0f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -290,7 +292,7 @@ public class MutationOptimizer : MonoBehaviour
 		}
 
 		// Handle live optim param change that affects internal resolution (reset optim state and buffers)
-		if (setOptimSupersampling != optimSupersampling || setTransparencyMode != transparencyMode || setMaxFragmentsPerPixel != maxFragmentsPerPixel || setResolutionX != targetResolution.x || setResolutionY != targetResolution.y)
+		if (setOptimSupersampling != optimResolutionFactor || setTransparencyMode != transparencyMode || setMaxFragmentsPerPixel != maxFragmentsPerPixel || setResolutionX != targetResolution.x || setResolutionY != targetResolution.y)
 		{
 			InitAllOptimBuffers();
 			ResetKeywords(primitiveRendererCS, true, true, true);
@@ -819,13 +821,20 @@ public class MutationOptimizer : MonoBehaviour
 	public void UpdateSchedulingStuff()
 	{
 		// Handle live doubling of primitive count
-		if (needsToDoublePrimitives == true || (doublingCounter < doublingAmount && currentOptimStep > 1 && currentOptimStep % doubleEveryXSteps == 0))
+		if (needsToDoublePrimitives == true || (primitiveDoublingCounter < primitiveDoublingCountAndInterval.x && currentOptimStep > 1 && currentOptimStep % primitiveDoublingCountAndInterval.y == 0))
 		{
 			needsToDoublePrimitives = false;
 			DoublePrimitiveCountBySubdivision();
 			//DoublePrimitiveCountByNewInsertion();
 			setPrimitiveCount = primitiveCount;
-			doublingCounter++;
+			primitiveDoublingCounter++;
+		}
+
+		// Handle live doubling of optim resolution
+		if (resolutionDoublingCounter < resolutionDoublingCountAndInterval.x && currentOptimStep > 1 && currentOptimStep % resolutionDoublingCountAndInterval.y == 0)
+		{
+			optimResolutionFactor *= 2;
+			resolutionDoublingCounter++;
 		}
 
 		// Position learning rate decay
@@ -1201,8 +1210,8 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetFloat("_AlphaContributingCutoff", alphaContributingCutoff);
 
 		computeShader.SetInt("_MutationsPerFrame", antitheticMutationsPerFrame);
-		computeShader.SetFloat("_OptimSuperSampling", optimSupersampling);
-		computeShader.SetFloat("_CurrentOptimizerMipLevel", math.log2(optimSupersampling));
+		computeShader.SetFloat("_OptimSuperSampling", optimResolutionFactor);
+		computeShader.SetFloat("_CurrentOptimizerMipLevel", math.log2(optimResolutionFactor));
 		computeShader.SetInt("_MaxFragmentsPerPixel", maxFragmentsPerPixel);
 		computeShader.SetInt("_PrimitiveCount", primitiveBuffer[0].count);
 
@@ -1215,6 +1224,7 @@ public class MutationOptimizer : MonoBehaviour
 
 		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
 		computeShader.SetFloat("_DoStructuralLoss", doStructuralLoss == true ? 1.0f : 0.0f);
+		computeShader.SetFloat("_StructuralLossDistFactor", structuralLossDistFactor);
 		computeShader.SetFloat("_DoPixelCountNorm", pixelCountNormalization == true ? 1.0f : 0.0f);
 	}
 
@@ -1342,7 +1352,7 @@ public class MutationOptimizer : MonoBehaviour
 			actualResolutionFloat = targetResolution;
 		else
 			actualResolutionFloat = colmapViewResolution;
-		actualResolutionFloat *= optimSupersampling;
+		actualResolutionFloat *= optimResolutionFactor;
 		Vector2Int actualResolution = new Vector2Int((int)actualResolutionFloat.x, (int)actualResolutionFloat.y);
 
 		// Display it
@@ -1478,7 +1488,7 @@ public class MutationOptimizer : MonoBehaviour
 		}
 
 		// Update watch variables
-		setOptimSupersampling = optimSupersampling;
+		setOptimSupersampling = optimResolutionFactor;
 		setTransparencyMode = transparencyMode;
 		setMaxFragmentsPerPixel = maxFragmentsPerPixel;
 		setResolutionX = targetResolution.x;

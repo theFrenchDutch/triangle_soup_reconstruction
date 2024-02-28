@@ -163,17 +163,17 @@ MonoBehaviour:
   targetMode: 2
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
-  target3DCOLMAPFolder: train
+  target3DCOLMAPFolder: garden
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
   useAlternateTriangleDefinition: 0
-  primitiveCount: 25000
+  primitiveCount: 10000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
-  colmapOnePrimitivePerInitPoint: 1
+  colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 9999
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
@@ -194,18 +194,18 @@ MonoBehaviour:
   separateFreeViewCamera: 1
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
-  lrGeometryStartMulAndSpeed: {x: 0, y: 0.0005}
-  doublingAmount: 0
-  doubleEveryXSteps: 1000
+  lrGeometryStartMulAndSpeed: {x: 0, y: 0.0001}
+  primitiveDoublingCountAndInterval: {x: 0, y: 1500}
+  resolutionDoublingCountAndInterval: {x: 0, y: 5000}
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimSupersampling: 1
-  pixelCountNormalization: 0
+  optimResolutionFactor: 0.125
+  pixelCountNormalization: 1
   doAlphaLoss: 0
-  doStructuralLoss: 0
+  doStructuralLoss: 1
   doAllInputFramesForEachOptimStep: 0
-  viewsPerOptimStep: 64
+  viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
   parameterSeparationMode: 1
   debugManualColmapChoice: -1
@@ -218,10 +218,11 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.5
+  structuralLossWeight: 0.1
+  structuralLossDistFactor: 0.25
   doPrimitiveResampling: 1
   resamplingInterval: 25
-  optimStepsUnseenBeforeKill: 8
+  optimStepsUnseenBeforeKill: 32
   minPrimitiveWorldArea: 0.0001
   millisecondsPerOptimStep: 0
   totalElapsedSeconds: 0

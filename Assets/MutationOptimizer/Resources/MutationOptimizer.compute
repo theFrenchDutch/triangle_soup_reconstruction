@@ -101,6 +101,7 @@ float _AlphaContributingCutoff;
 float _DoGradientDescent;
 float _DoStructuralLoss;
 float _StructuralLossWeight;
+float _StructuralLossDistFactor;
 float _DoPixelCountNorm;
 
 
@@ -363,13 +364,14 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 		{
 			// Minimum pixel change considering current camera VP matrix
 			//randomMutation *= pixelSize;
-			randomMutation *= learningRatesFloats[i];
+			randomMutation *= 0.1;
+			//randomMutation *= learningRatesFloats[i];
 			primitiveDataFloats[i] += randomMutation;
 		}
 		else if(learningRatesFloats[i] == _LearningRateColor)
 		{
-			// Minimum pixel change considering gamma target
 			#ifdef SINGLE_COLOR
+				// Minimum pixel change considering gamma target
 				randomMutation *= (1.0 / 256.0);
 				float temp = pow(primitiveDataFloats[i], 2.2) + randomMutation;
 				primitiveDataFloats[i] = pow(temp, 1.0 / 2.2);
@@ -377,6 +379,13 @@ void CreateNewRandomMutation(uint3 id : SV_DispatchThreadID)
 				randomMutation *= learningRatesFloats[i];
 				primitiveDataFloats[i] += randomMutation;
 			#endif
+		}
+		else if (learningRatesFloats[i] == _LearningRateEnvMap)
+		{
+			// Minimum pixel change considering gamma target
+			randomMutation *= (1.0 / 256.0);
+			float temp = pow(primitiveDataFloats[i], 2.2) + randomMutation;
+			primitiveDataFloats[i] = pow(temp, 1.0 / 2.2);
 		}
 		else
 		{
@@ -496,7 +505,7 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 					}
 				}
 			}
-			if (currentClosestPair0.z > currentAvgSize * 1) // return if triangles are too far away
+			if (currentClosestPair0.z > currentAvgSize * _StructuralLossDistFactor) // return if triangles are too far away
 				continue;
 			float3 currentClosestPair1 = float3(-1, -1, 99999999);
 			for (int i = 0; i < 3; i++)

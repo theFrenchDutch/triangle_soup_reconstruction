@@ -46,13 +46,13 @@ public class MutationOptimizerEditor : Editor
 
 	SerializedProperty lrGlobalStartMulAndSpeed;
 	SerializedProperty lrGeometryStartMulAndSpeed;
-	SerializedProperty doublingAmount;
-	SerializedProperty doubleEveryXSteps;
+	SerializedProperty primitiveDoublingCountAndInterval;
+	SerializedProperty resolutionDoublingCountAndInterval;
 
 	SerializedProperty optimizer;
 	SerializedProperty lossMode;
 	SerializedProperty gradientsWarmupSteps;
-	SerializedProperty optimSupersampling;
+	SerializedProperty optimResolutionFactor;
 	SerializedProperty pixelCountNormalization;
 	SerializedProperty doAlphaLoss;
 	SerializedProperty doStructuralLoss;
@@ -71,6 +71,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty learningRateAlpha;
 	SerializedProperty learningRateEnvMap;
 	SerializedProperty structuralLossWeight;
+	SerializedProperty structuralLossDistFactor;
 
 	SerializedProperty doPrimitiveResampling;
 	SerializedProperty resamplingInterval;
@@ -128,13 +129,13 @@ public class MutationOptimizerEditor : Editor
 
 		lrGlobalStartMulAndSpeed = serializedObject.FindProperty("lrGlobalStartMulAndSpeed");
 		lrGeometryStartMulAndSpeed = serializedObject.FindProperty("lrGeometryStartMulAndSpeed");
-		doublingAmount = serializedObject.FindProperty("doublingAmount");
-		doubleEveryXSteps = serializedObject.FindProperty("doubleEveryXSteps");
+		primitiveDoublingCountAndInterval = serializedObject.FindProperty("primitiveDoublingCountAndInterval");
+		resolutionDoublingCountAndInterval = serializedObject.FindProperty("resolutionDoublingCountAndInterval");
 
 		optimizer = serializedObject.FindProperty("optimizer");
 		lossMode = serializedObject.FindProperty("lossMode");
 		gradientsWarmupSteps = serializedObject.FindProperty("gradientsWarmupSteps");
-		optimSupersampling = serializedObject.FindProperty("optimSupersampling");
+		optimResolutionFactor = serializedObject.FindProperty("optimResolutionFactor");
 		pixelCountNormalization = serializedObject.FindProperty("pixelCountNormalization");
 		doAlphaLoss = serializedObject.FindProperty("doAlphaLoss");
 		doStructuralLoss = serializedObject.FindProperty("doStructuralLoss");
@@ -153,6 +154,7 @@ public class MutationOptimizerEditor : Editor
 		learningRateAlpha = serializedObject.FindProperty("learningRateAlpha");
 		learningRateEnvMap = serializedObject.FindProperty("learningRateEnvMap");
 		structuralLossWeight = serializedObject.FindProperty("structuralLossWeight");
+		structuralLossDistFactor = serializedObject.FindProperty("structuralLossDistFactor");
 
 		doPrimitiveResampling = serializedObject.FindProperty("doPrimitiveResampling");
 		resamplingInterval = serializedObject.FindProperty("resamplingInterval");
@@ -176,7 +178,7 @@ public class MutationOptimizerEditor : Editor
 		// Validate parameters
 		if (doPrimitiveResampling.boolValue == true)
 			primitiveCount.intValue = math.max(primitiveCount.intValue, 2);
-		optimSupersampling.floatValue = math.max(optimSupersampling.floatValue, 1.0f / 8.0f);
+		optimResolutionFactor.floatValue = math.max(optimResolutionFactor.floatValue, 1.0f / 8.0f);
 		viewsPerOptimStep.intValue = math.max(viewsPerOptimStep.intValue, 1);
 		targetResolution.vector2IntValue = new Vector2Int(math.max(targetResolution.vector2IntValue.x, 2), math.max(targetResolution.vector2IntValue.y, 2));
 		maxFragmentsPerPixel.intValue = math.max(maxFragmentsPerPixel.intValue, 1);
@@ -312,11 +314,8 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(lrGlobalStartMulAndSpeed);
 		if (optimPrimitive.enumValueIndex != 3)
 			EditorGUILayout.PropertyField(lrGeometryStartMulAndSpeed);
-		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 3 || optimPrimitive.enumValueIndex == 4)
-		{
-			EditorGUILayout.PropertyField(doublingAmount);
-			EditorGUILayout.PropertyField(doubleEveryXSteps);
-		}
+		EditorGUILayout.PropertyField(primitiveDoublingCountAndInterval);
+		EditorGUILayout.PropertyField(resolutionDoublingCountAndInterval);
 
 		// Optimizer settings
 		EditorGUILayout.Space();
@@ -324,7 +323,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(optimizer);
 		EditorGUILayout.PropertyField(lossMode);
 		EditorGUILayout.PropertyField(gradientsWarmupSteps);
-		EditorGUILayout.PropertyField(optimSupersampling);
+		EditorGUILayout.PropertyField(optimResolutionFactor);
 		EditorGUILayout.PropertyField(pixelCountNormalization);
 		EditorGUILayout.PropertyField(doAlphaLoss);
 		EditorGUILayout.PropertyField(doStructuralLoss);
@@ -353,7 +352,10 @@ public class MutationOptimizerEditor : Editor
 		if (backgroundMode.enumValueIndex == 2)
 			EditorGUILayout.PropertyField(learningRateEnvMap);
 		if (doStructuralLoss.boolValue == true)
+		{
 			EditorGUILayout.PropertyField(structuralLossWeight);
+			EditorGUILayout.PropertyField(structuralLossDistFactor);
+		}
 
 		// Resampling settings
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2 || optimPrimitive.enumValueIndex == 4)
