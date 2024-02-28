@@ -25,6 +25,7 @@
 #pragma kernel InitBitonicSortValidPrimitives
 #pragma kernel BitonicSortValidPrimitives
 #pragma kernel PairResampling
+#pragma kernel TripleResampling
 
 RWStructuredBuffer<PrimitiveData> _PrimitiveBuffer;
 int _PrimitiveCount;
@@ -904,6 +905,8 @@ void InitArgsResampling(uint3 id : SV_DispatchThreadID)
 	uint validCount = _ArgsValidPrimitiveIDs[0];
 	uint invalidCount = _ArgsInvalidPrimitiveIDs[0];
 	uint threadCount = min(validCount, invalidCount);
+	if (_DoStructuralLoss > 0.5) // Triple resampling when using structural loss
+		threadCount = min(validCount, invalidCount / 2);
 
 	int threadGroupCount = (int)ceil(threadCount / 256.0);
 	if (threadGroupCount < 65536)
@@ -1077,12 +1080,12 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 
 	// COLOR
 #ifdef TRIANGLE_GRADIENT
-	//Color newColor = (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
+	Color newColor = primitive1.colors[idLeft];// (primitive1.colors[idLeft] + primitive1.colors[idRight]) / 2.0;
 	_PrimitiveBuffer[primitiveID0].colors[0] = primitive1.colors[idBase];
 	_PrimitiveBuffer[primitiveID0].colors[1] = primitive1.colors[idLeft];
-	_PrimitiveBuffer[primitiveID0].colors[2] = primitive1.colors[idLeft];
+	_PrimitiveBuffer[primitiveID0].colors[2] = newColor;
 	_PrimitiveBuffer[primitiveID1].colors[0] = primitive1.colors[idBase];
-	_PrimitiveBuffer[primitiveID1].colors[1] = primitive1.colors[idLeft];
+	_PrimitiveBuffer[primitiveID1].colors[1] = newColor;
 	_PrimitiveBuffer[primitiveID1].colors[2] = primitive1.colors[idRight];
 #else
 	_PrimitiveBuffer[primitiveID0].color = primitive1.color;
@@ -1092,9 +1095,83 @@ void PairResampling(uint3 id : SV_DispatchThreadID)
 	// Reset all gradients
 	PrimitiveData zeroInit = ZeroInitPrimitiveData();
 	_PrimitiveGradientsMoments1[primitiveID0] = zeroInit;
-	_PrimitiveGradientsMoments2[primitiveID0] = zeroInit;
 	_PrimitiveGradientsMoments1[primitiveID1] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveID0] = zeroInit;
 	_PrimitiveGradientsMoments2[primitiveID1] = zeroInit;
 	_PrimitiveOptimStepCounter[primitiveID0] = 0;
 	_PrimitiveOptimStepCounter[primitiveID1] = 0;
+}
+
+[numthreads(256, 1, 1)]
+void TripleResampling(uint3 id : SV_DispatchThreadID)
+{
+	uint dispatchDistributer = _ArgsResampling[0];
+	uint threadID = id.x + id.y * dispatchDistributer * 256;
+	if (threadID >= _ArgsResampling[3])
+		return;
+
+	// Get current resampling pair (subdivide primitiveA by re-using primitiveB and primitiveC)
+	uint primitiveIDA = _SortedValidPrimitiveIDs[threadID].x;
+	if (primitiveIDA >= _PrimitiveCount)
+		return;
+	uint primitiveIDB = _ReadInvalidPrimitiveIDs[threadID * 2 + 0];
+	uint primitiveIDC = _ReadInvalidPrimitiveIDs[threadID * 2 + 1];
+
+	PrimitiveData primitiveA = _PrimitiveBuffer[primitiveIDA];
+	float3 primitiveAPositions[3];
+	primitiveAPositions[0] = GetWorldVertex(primitiveA.geometry, 0);
+	primitiveAPositions[1] = GetWorldVertex(primitiveA.geometry, 1);
+	primitiveAPositions[2] = GetWorldVertex(primitiveA.geometry, 2);
+	PrimitiveData primitiveB = _PrimitiveBuffer[primitiveIDB];
+	PrimitiveData primitiveC = _PrimitiveBuffer[primitiveIDC];
+
+	// Handle kill counters
+	_PrimitiveKillCounters[primitiveIDA] = _FramesUnseenBeforeKill;
+	_PrimitiveKillCounters[primitiveIDB] = _FramesUnseenBeforeKill;
+	_PrimitiveKillCounters[primitiveIDC] = _FramesUnseenBeforeKill;
+
+	// GEOMETRY
+#ifdef ALTERNATE_POSITIONS
+#else
+	float3 barycenter = (primitiveAPositions[0] + primitiveAPositions[1] + primitiveAPositions[2]) / 3.0;
+	_PrimitiveBuffer[primitiveIDA].geometry.positions[0] = primitiveAPositions[0];
+	_PrimitiveBuffer[primitiveIDA].geometry.positions[1] = primitiveAPositions[1];
+	_PrimitiveBuffer[primitiveIDA].geometry.positions[2] = barycenter;
+	_PrimitiveBuffer[primitiveIDB].geometry.positions[0] = primitiveAPositions[1];
+	_PrimitiveBuffer[primitiveIDB].geometry.positions[1] = primitiveAPositions[2];
+	_PrimitiveBuffer[primitiveIDB].geometry.positions[2] = barycenter;
+	_PrimitiveBuffer[primitiveIDC].geometry.positions[0] = primitiveAPositions[2];
+	_PrimitiveBuffer[primitiveIDC].geometry.positions[1] = primitiveAPositions[0];
+	_PrimitiveBuffer[primitiveIDC].geometry.positions[2] = barycenter;
+#endif
+
+	// COLOR
+#ifdef TRIANGLE_GRADIENT
+	Color barycenterColor = primitive1.colors[0];// (primitive1.colors[0] + primitive1.colors[1] + primitive1.colors[2]) / 3.0;
+	_PrimitiveBuffer[primitiveIDA].colors[0] = primitiveA.colors[0];
+	_PrimitiveBuffer[primitiveIDA].colors[1] = primitiveA.colors[1];
+	_PrimitiveBuffer[primitiveIDA].colors[2] = barycenterColor;
+	_PrimitiveBuffer[primitiveIDB].colors[0] = primitiveA.colors[1];
+	_PrimitiveBuffer[primitiveIDB].colors[1] = primitiveA.colors[2];
+	_PrimitiveBuffer[primitiveIDB].colors[2] = barycenterColor;
+	_PrimitiveBuffer[primitiveIDC].colors[0] = primitiveA.colors[2];
+	_PrimitiveBuffer[primitiveIDC].colors[1] = primitiveA.colors[0];
+	_PrimitiveBuffer[primitiveIDC].colors[2] = barycenterColor;
+#else
+	_PrimitiveBuffer[primitiveIDA].color = primitiveA.color;
+	_PrimitiveBuffer[primitiveIDB].color = primitiveA.color;
+	_PrimitiveBuffer[primitiveIDC].color = primitiveA.color;
+#endif
+
+	// Reset all gradients
+	PrimitiveData zeroInit = ZeroInitPrimitiveData();
+	_PrimitiveGradientsMoments1[primitiveIDA] = zeroInit;
+	_PrimitiveGradientsMoments1[primitiveIDB] = zeroInit;
+	_PrimitiveGradientsMoments1[primitiveIDC] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveIDA] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveIDB] = zeroInit;
+	_PrimitiveGradientsMoments2[primitiveIDC] = zeroInit;
+	_PrimitiveOptimStepCounter[primitiveIDA] = 0;
+	_PrimitiveOptimStepCounter[primitiveIDB] = 0;
+	_PrimitiveOptimStepCounter[primitiveIDC] = 0;
 }

@@ -160,7 +160,7 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 2
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
   target3DCOLMAPFolder: garden
@@ -171,19 +171,19 @@ MonoBehaviour:
   primitiveCount: 10000
   primitiveInitSize: 0.01
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 1
+  initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
   colmapMaxInitPointDistance: 9999
   colmapInitPointsTrimAABBCenterSize: {x: 0, y: 0, z: 0, w: 0}
-  sphericalHarmonicsMode: 1
+  sphericalHarmonicsMode: 0
   transparencyMode: 0
   maxFragmentsPerPixel: 8
   alphaContributingCutoff: 0.99
   randomViewZoomRange: {x: 2, y: 2}
-  backgroundMode: 2
-  backgroundColor: {r: 0.44705883, g: 0.57254905, b: 0.8666667, a: 1}
+  backgroundMode: 0
+  backgroundColor: {r: 0, g: 0, b: 0, a: 1}
   envMapResolution: 128
   displayAdaptiveTriangleBlurring: 0
   optimAdaptiveTriangleBlurring: 0
@@ -195,15 +195,15 @@ MonoBehaviour:
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.0001}
-  primitiveDoublingCountAndInterval: {x: 0, y: 1500}
+  primitiveDoublingCountAndInterval: {x: 0, y: 500}
   resolutionDoublingCountAndInterval: {x: 0, y: 5000}
   optimizer: 1
   lossMode: 1
   gradientsWarmupSteps: 16
-  optimResolutionFactor: 0.125
-  pixelCountNormalization: 1
-  doAlphaLoss: 0
-  doStructuralLoss: 1
+  optimResolutionFactor: 1
+  pixelCountNormalization: 0
+  doAlphaLoss: 1
+  doStructuralLoss: 0
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
   antitheticMutationsPerFrame: 1
@@ -218,9 +218,9 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.1
-  structuralLossDistFactor: 0.25
-  doPrimitiveResampling: 1
+  structuralLossWeight: 0
+  structuralLossDistFactor: 1
+  doPrimitiveResampling: 0
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 32
   minPrimitiveWorldArea: 0.0001

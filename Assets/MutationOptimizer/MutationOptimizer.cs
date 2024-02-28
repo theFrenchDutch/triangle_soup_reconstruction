@@ -102,6 +102,7 @@ public class MutationOptimizer : MonoBehaviour
 	private int kernelInitBitonicSortValidPrimitives;
 	private int kernelBitonicSortValidPrimitives;
 	private int kernelPairResampling;
+	private int kernelTripleResampling;
 
 	// Variable change watchers
 	private int setPrimitiveCount = -1;
@@ -240,6 +241,7 @@ public class MutationOptimizer : MonoBehaviour
 		kernelInitBitonicSortValidPrimitives = mutationOptimizerCS.FindKernel("InitBitonicSortValidPrimitives");
 		kernelBitonicSortValidPrimitives = mutationOptimizerCS.FindKernel("BitonicSortValidPrimitives");
 		kernelPairResampling = mutationOptimizerCS.FindKernel("PairResampling");
+		kernelTripleResampling = mutationOptimizerCS.FindKernel("TripleResampling");
 
 		int primitiveGroupCount = backgroundMode == BackgroundMode.EnvMap ? 2 : 1;
 		primitiveBuffer = new ComputeBuffer[primitiveGroupCount];
@@ -824,7 +826,10 @@ public class MutationOptimizer : MonoBehaviour
 		if (needsToDoublePrimitives == true || (primitiveDoublingCounter < primitiveDoublingCountAndInterval.x && currentOptimStep > 1 && currentOptimStep % primitiveDoublingCountAndInterval.y == 0))
 		{
 			needsToDoublePrimitives = false;
-			DoublePrimitiveCountBySubdivision();
+			if (doStructuralLoss == false)
+				DoublePrimitiveCountBySubdivision();
+			else
+				TriplePrimitiveCountBySubdivision();
 			//DoublePrimitiveCountByNewInsertion();
 			setPrimitiveCount = primitiveCount;
 			primitiveDoublingCounter++;
@@ -1061,17 +1066,35 @@ public class MutationOptimizer : MonoBehaviour
 		}
 
 		// Resample primitive pairs
-		mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveBuffer", primitiveBuffer[0]);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveKillCounters", primitiveKillCounters);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[0]);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ArgsResampling", argsResampling);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ReadValidPrimitiveIDs", appendValidIDsBuffer);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_SortedValidPrimitiveIDs", sortedValidPrimitiveIDBuffer);
-		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ReadInvalidPrimitiveIDs", appendInvalidIDsBuffer);
-		mutationOptimizerCS.DispatchIndirect(kernelPairResampling, argsResampling);
+		if (doStructuralLoss == false)
+		{
+			mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveBuffer", primitiveBuffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveKillCounters", primitiveKillCounters);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ArgsResampling", argsResampling);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ReadValidPrimitiveIDs", appendValidIDsBuffer);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_SortedValidPrimitiveIDs", sortedValidPrimitiveIDBuffer);
+			mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ReadInvalidPrimitiveIDs", appendInvalidIDsBuffer);
+			mutationOptimizerCS.DispatchIndirect(kernelPairResampling, argsResampling);
+		}
+		// Resample primitive triples
+		else
+		{
+			mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveBuffer", primitiveBuffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveKillCounters", primitiveKillCounters);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_ArgsResampling", argsResampling);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_ReadValidPrimitiveIDs", appendValidIDsBuffer);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_SortedValidPrimitiveIDs", sortedValidPrimitiveIDBuffer);
+			mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_ReadInvalidPrimitiveIDs", appendInvalidIDsBuffer);
+			mutationOptimizerCS.DispatchIndirect(kernelTripleResampling, argsResampling);
+		}
 
 		//int[] args0 = new int[4];
 		//argsValidIDsBuffer.GetData(args0);
@@ -1140,6 +1163,74 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_SortedValidPrimitiveIDs", tempSortedValidBuffer);
 		mutationOptimizerCS.SetBuffer(kernelPairResampling, "_ReadInvalidPrimitiveIDs", tempInvalidBuffer);
 		mutationOptimizerCS.DispatchIndirect(kernelPairResampling, argsResampling);
+
+		// Finish
+		ResetKeywords(primitiveRendererCS, true, true, true);
+		ResetKeywords(mutationOptimizerCS, true, true, true);
+		ResetKeywords(rasterMaterial, true, true, true);
+		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
+		tempSortedValidBuffer.Release();
+		tempInvalidBuffer.Release();
+	}
+
+	public void TriplePrimitiveCountBySubdivision()
+	{
+		if (optimPrimitive != PrimitiveType.TrianglesSolidUnlit && optimPrimitive != PrimitiveType.TrianglesGradientUnlit && optimPrimitive != PrimitiveType.TrianglesGaussianUnlit)
+			return;
+
+		// Triple all the buffer sizes and copy existing primitives to first third
+		primitiveCount = primitiveCount * 3;
+		int primitiveByteSize = GetPrimitiveFloatSize(optimPrimitive) * 4;
+		byte[] tempDataCopy = new byte[primitiveCount / 3 * primitiveByteSize];
+		primitiveBuffer[0].GetData(tempDataCopy);
+		primitiveBuffer[0].Release();
+		primitiveBuffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
+		primitiveBuffer[0].SetData(tempDataCopy);
+		InitAllOptimBuffers();
+
+		// Hijack triple resampling code by creating fake invalid primitive and sorted valid primitive buffers
+		uint2[] sortedValidIDs = new uint2[primitiveCount / 3];
+		for (int i = 0; i < sortedValidIDs.Length; i++)
+			sortedValidIDs[i] = new uint2((uint)i, 0);
+		uint[] invalidIDs = new uint[(primitiveCount / 3) * 2];
+		for (int i = 0; i < invalidIDs.Length; i++)
+			invalidIDs[i] = (uint)(primitiveCount / 3 + i);
+		ComputeBuffer tempSortedValidBuffer = new ComputeBuffer(primitiveCount / 3, sizeof(uint) * 2);
+		tempSortedValidBuffer.SetData(sortedValidIDs);
+		ComputeBuffer tempInvalidBuffer = new ComputeBuffer((primitiveCount / 3) * 2, sizeof(uint));
+		tempInvalidBuffer.SetData(invalidIDs);
+
+		// Dispatch args
+		int[] temp = new int[4];
+		int threadGroupCount = (int)math.ceil(primitiveCount / 3 / 256.0);
+		if (threadGroupCount < 65536)
+		{
+			temp[0] = threadGroupCount;
+			temp[1] = 1;
+			temp[2] = 1;
+			temp[3] = primitiveCount / 3;
+		}
+		else
+		{
+			int threadGroupCountDistributed = (int)math.ceil(math.pow(threadGroupCount, 1.0f / 2.0f));
+			temp[0] = threadGroupCountDistributed;
+			temp[1] = threadGroupCountDistributed;
+			temp[2] = 1;
+			temp[3] = primitiveCount / 3;
+		}
+		argsResampling.SetData(temp);
+
+		// Run resampling
+		mutationOptimizerCS.SetInt("_CurrentFrame", currentViewPoint);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveBuffer", primitiveBuffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveKillCounters", primitiveKillCounters);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveGradientsMoments1", gradientMoments1Buffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveGradientsMoments2", gradientMoments2Buffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_ArgsResampling", argsResampling);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_SortedValidPrimitiveIDs", tempSortedValidBuffer);
+		mutationOptimizerCS.SetBuffer(kernelTripleResampling, "_ReadInvalidPrimitiveIDs", tempInvalidBuffer);
+		mutationOptimizerCS.DispatchIndirect(kernelTripleResampling, argsResampling);
 
 		// Finish
 		ResetKeywords(primitiveRendererCS, true, true, true);
