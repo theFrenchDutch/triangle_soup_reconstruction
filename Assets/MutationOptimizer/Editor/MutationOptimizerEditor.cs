@@ -53,6 +53,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty lossMode;
 	SerializedProperty gradientsWarmupSteps;
 	SerializedProperty optimResolutionFactor;
+	SerializedProperty trianglePerVertexError;
 	SerializedProperty pixelCountNormalization;
 	SerializedProperty doAlphaLoss;
 	SerializedProperty doStructuralLoss;
@@ -136,6 +137,7 @@ public class MutationOptimizerEditor : Editor
 		lossMode = serializedObject.FindProperty("lossMode");
 		gradientsWarmupSteps = serializedObject.FindProperty("gradientsWarmupSteps");
 		optimResolutionFactor = serializedObject.FindProperty("optimResolutionFactor");
+		trianglePerVertexError = serializedObject.FindProperty("trianglePerVertexError");
 		pixelCountNormalization = serializedObject.FindProperty("pixelCountNormalization");
 		doAlphaLoss = serializedObject.FindProperty("doAlphaLoss");
 		doStructuralLoss = serializedObject.FindProperty("doStructuralLoss");
@@ -324,6 +326,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(lossMode);
 		EditorGUILayout.PropertyField(gradientsWarmupSteps);
 		EditorGUILayout.PropertyField(optimResolutionFactor);
+		EditorGUILayout.PropertyField(trianglePerVertexError);
 		EditorGUILayout.PropertyField(pixelCountNormalization);
 		EditorGUILayout.PropertyField(doAlphaLoss);
 		EditorGUILayout.PropertyField(doStructuralLoss);

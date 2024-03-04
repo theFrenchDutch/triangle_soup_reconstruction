@@ -165,6 +165,7 @@ public class MutationOptimizer : MonoBehaviour
 	public LossMode lossMode = LossMode.L2;
 	public int gradientsWarmupSteps = 16;
 	public float optimResolutionFactor = 1;
+	public bool trianglePerVertexError = false;
 	public bool pixelCountNormalization = false;
 	public bool doAlphaLoss = true;
 	public bool doStructuralLoss = true;
@@ -1514,7 +1515,7 @@ public class MutationOptimizer : MonoBehaviour
 		gradientMoments1Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		gradientMoments2Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		primitiveBufferMutated[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
-		optimStepMutationError[0] = new ComputeBuffer(primitiveCount, sizeof(int) * 4);
+		optimStepMutationError[0] = new ComputeBuffer(primitiveCount * (trianglePerVertexError ? 3 : 1), sizeof(int) * 4);
 		optimStepCounterBuffer[0] = new ComputeBuffer(primitiveCount, sizeof(int));
 		primitiveKillCounters = new ComputeBuffer(primitiveCount, sizeof(int));
 		ZeroInitBuffer(optimStepGradientsBuffer[0]);
@@ -1601,6 +1602,8 @@ public class MutationOptimizer : MonoBehaviour
 			bool TRIANGLE_SOLID = keywords.Contains("TRIANGLE_SOLID");
 			bool TRIANGLE_GRADIENT = keywords.Contains("TRIANGLE_GRADIENT");
 			bool TRIANGLE_GAUSSIAN = keywords.Contains("TRIANGLE_GAUSSIAN");
+			bool PER_VERTEX_ERROR = keywords.Contains("PER_VERTEX_ERROR");
+			bool PER_TRIANGLE_ERROR = keywords.Contains("PER_TRIANGLE_ERROR");
 			if (NORMAL_POSITIONS != !useAlternateTriangleDefinition)
 				return false;
 			if (ALTERNATE_POSITIONS != useAlternateTriangleDefinition)
@@ -1610,6 +1613,10 @@ public class MutationOptimizer : MonoBehaviour
 			if (TRIANGLE_GRADIENT != (optimPrimitive == PrimitiveType.TrianglesGradientUnlit))
 				return false;
 			if (TRIANGLE_GAUSSIAN != (optimPrimitive == PrimitiveType.TrianglesGaussianUnlit))
+				return false;
+			if (PER_VERTEX_ERROR != trianglePerVertexError)
+				return false;
+			if (PER_TRIANGLE_ERROR != !trianglePerVertexError)
 				return false;
 		}
 
@@ -1654,6 +1661,8 @@ public class MutationOptimizer : MonoBehaviour
 			computeShader.DisableKeyword("TRIANGLE_SOLID");
 			computeShader.DisableKeyword("TRIANGLE_GRADIENT");
 			computeShader.DisableKeyword("TRIANGLE_GAUSSIAN");
+			computeShader.DisableKeyword("PER_VERTEX_ERROR");
+			computeShader.DisableKeyword("PER_TRIANGLE_ERROR");
 			if (useAlternateTriangleDefinition == false)
 				computeShader.EnableKeyword("NORMAL_POSITIONS");
 			if (useAlternateTriangleDefinition == true)
@@ -1664,6 +1673,10 @@ public class MutationOptimizer : MonoBehaviour
 				computeShader.EnableKeyword("TRIANGLE_GRADIENT");
 			else if (optimPrimitive == PrimitiveType.TrianglesGaussianUnlit)
 				computeShader.EnableKeyword("TRIANGLE_GAUSSIAN");
+			if (trianglePerVertexError == false)
+				computeShader.EnableKeyword("PER_TRIANGLE_ERROR");
+			if (trianglePerVertexError == true)
+				computeShader.EnableKeyword("PER_VERTEX_ERROR");
 		}
 
 		if (doTransparencyMode == true)
@@ -1708,6 +1721,8 @@ public class MutationOptimizer : MonoBehaviour
 			material.DisableKeyword("TRIANGLE_SOLID");
 			material.DisableKeyword("TRIANGLE_GRADIENT");
 			material.DisableKeyword("TRIANGLE_GAUSSIAN");
+			material.DisableKeyword("PER_VERTEX_ERROR");
+			material.DisableKeyword("PER_TRIANGLE_ERROR");
 			if (useAlternateTriangleDefinition == false)
 				material.EnableKeyword("NORMAL_POSITIONS");
 			if (useAlternateTriangleDefinition == true)
@@ -1718,6 +1733,10 @@ public class MutationOptimizer : MonoBehaviour
 				material.EnableKeyword("TRIANGLE_GRADIENT");
 			else if (optimPrimitive == PrimitiveType.TrianglesGaussianUnlit)
 				material.EnableKeyword("TRIANGLE_GAUSSIAN");
+			if (trianglePerVertexError == false)
+				material.EnableKeyword("PER_TRIANGLE_ERROR");
+			if (trianglePerVertexError == true)
+				material.EnableKeyword("PER_VERTEX_ERROR");
 		}
 
 		if (doTransparencyMode == true)

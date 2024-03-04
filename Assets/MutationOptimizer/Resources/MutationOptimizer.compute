@@ -2,6 +2,7 @@
 #pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
 #pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 #pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
+#pragma multi_compile PER_VERTEX_ERROR PER_TRIANGLE_ERROR
 #include "OptimizerPrimitives.hlsl"
 
 #pragma kernel ResetMutationLossAccumulation
@@ -119,21 +120,36 @@ void ResetMutationLossAccumulation(uint3 id : SV_DispatchThreadID)
 	_PrimitiveGradientsOptimStep[threadID] = ZeroInitPrimitiveData();
 
 	// Reset primitive loss (need it here for binary mutation mode)
-	_PrimitiveMutationError[threadID] = 0;
+#ifdef PER_VERTEX_ERROR
+	_PrimitiveMutationError[threadID * 3 + 0] = int4(0, 0, 0, 0);;
+	_PrimitiveMutationError[threadID * 3 + 1] = int4(0, 0, 0, 0);;
+	_PrimitiveMutationError[threadID * 3 + 2] = int4(0, 0, 0, 0);;
+#else
+	_PrimitiveMutationError[threadID] = int4(0, 0, 0, 0);;
+#endif
 }
 
 void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff, Texture2D<float4> _DepthIDBuffer, inout int seenPrimitiveID, int avoidPrimitiveID = -1)
 {
-#ifdef OPAQUE_RENDER
+//#ifdef OPAQUE_RENDER
 	float4 depthIDBufferFetch = _DepthIDBuffer[pixelCoord];
 	int primitiveID = asuint(depthIDBufferFetch.r);
 	seenPrimitiveID = primitiveID;
 	if (primitiveID >= _PrimitiveCount || seenPrimitiveID == avoidPrimitiveID)
 		return;
+#ifdef PER_VERTEX_ERROR
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].x, lossDiff);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 1].x, lossDiff);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 2].x, lossDiff);
+	if (_DoPixelCountNorm > 0.5)
+		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].y, 1);
+#else
 	InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+	if (_DoPixelCountNorm > 0.5)
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].y, 1);
+#endif
 
-#elif SORTED_ALPHA_RENDER
+/*#elif SORTED_ALPHA_RENDER
 	int visibleFragmentCount = _PerPixelFragmentCounter[flatPixelCoord];
 	for (int i = 0; i < visibleFragmentCount; i++)
 	{
@@ -149,7 +165,7 @@ void AccumulateLossForPixel(uint2 pixelCoord, uint flatPixelCoord, int lossDiff,
 		uint primitiveID = asuint(depthIDBufferFetch.r);
 		InterlockedAdd(_PrimitiveMutationError[primitiveID].x, lossDiff);
 	}
-#endif
+#endif*/
 }
 
 [numthreads(16, 16, 1)]
@@ -198,15 +214,34 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	uint primitiveID = threadID;
 
 	// Fetch normalized Primitive loss
+#ifdef PER_VERTEX_ERROR
+	float3 lossDiffImage = float3(_PrimitiveMutationError[primitiveID * 3 + 0].x, _PrimitiveMutationError[primitiveID * 3 + 1].x, _PrimitiveMutationError[primitiveID * 3 + 2].x);
+	int pixelCountImage = _PrimitiveMutationError[primitiveID * 3 + 0].y;
+	if (_DoPixelCountNorm > 0.5 && pixelCountImage > 0)
+		lossDiffImage /= (float3)pixelCountImage;
+	float3 lossDiff;
+	if (_DoStructuralLoss > 0.5)
+	{
+		float3 lossDiffStructural = float3(_PrimitiveMutationError[primitiveID * 3 + 0].z, _PrimitiveMutationError[primitiveID * 3 + 1].z, _PrimitiveMutationError[primitiveID * 3 + 2].z);
+		int pixelCountStructural = _PrimitiveMutationError[primitiveID * 3 + 0].w;
+		if (_DoPixelCountNorm > 0.5 && pixelCountStructural > 0)
+			lossDiffStructural /= (float3)pixelCountStructural;
+		lossDiff = lossDiffImage * (1.0 - _StructuralLossWeight) + lossDiffStructural * _StructuralLossWeight;
+	}
+	else
+	{
+		lossDiff = lossDiffImage;
+	}
+#else
 	float lossDiffImage = _PrimitiveMutationError[primitiveID].x;
-	int pixelCountImage = _PrimitiveMutationError[threadID].y;
+	int pixelCountImage = _PrimitiveMutationError[primitiveID].y;
 	if (_DoPixelCountNorm > 0.5 && pixelCountImage > 0)
 		lossDiffImage /= (float)pixelCountImage;
 	float lossDiff;
 	if (_DoStructuralLoss > 0.5)
 	{
 		float lossDiffStructural = _PrimitiveMutationError[primitiveID].z;
-		int pixelCountStructural = _PrimitiveMutationError[threadID].w;
+		int pixelCountStructural = _PrimitiveMutationError[primitiveID].w;
 		if (_DoPixelCountNorm > 0.5 && pixelCountStructural > 0)
 			lossDiffStructural /= (float)pixelCountStructural;
 		lossDiff = lossDiffImage * (1.0 - _StructuralLossWeight) + lossDiffStructural * _StructuralLossWeight;
@@ -215,6 +250,7 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	{
 		lossDiff = lossDiffImage;
 	}
+#endif
 
 	// Get data
 	PrimitiveData primitiveData = _PrimitiveBuffer[primitiveID];
@@ -232,8 +268,21 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	// Accumulate gradients
 	for (int i = 0; i < PRIMITIVE_SIZE; i++)
 	{
+#ifdef PER_VERTEX_ERROR
+		float lossDiffToUse;
+		if (i < 3)
+			lossDiffToUse = lossDiff.x;
+		else if (i < 6)
+			lossDiffToUse = lossDiff.y;
+		else if (i < 9)
+			lossDiffToUse = lossDiff.z;
+		else
+			lossDiffToUse = (lossDiff.x + lossDiff.y + lossDiff.z) / 3.0;
+#else
+		float lossDiffToUse = lossDiff;
+#endif
 		float mutation = primitiveDataMutatedFloats[i] - primitiveDataFloats[i];
-		mutationGradientsFloats[i] += mutation * lossDiff / 2.0;
+		mutationGradientsFloats[i] += mutation * lossDiffToUse / 2.0;
 	}
 
 	// Convert back to primitive struct
@@ -243,7 +292,13 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	_PrimitiveGradientsOptimStep[primitiveID] = mutationGradients;
 
 	// Reset Primitive loss
+#ifdef PER_VERTEX_ERROR
+	_PrimitiveMutationError[threadID * 3 + 0] = int4(0, 0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 1] = int4(0, 0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 2] = int4(0, 0, 0, 0);
+#else
 	_PrimitiveMutationError[threadID] = int4(0, 0, 0, 0);
+#endif
 }
 
 [numthreads(256, 1, 1)]
@@ -566,15 +621,6 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		length1Plus = length(otherPositions[j] - vertexPlus);
 	}
 
-	// Attract closest pairs to form an edge
-	float lengthMinus = length0Minus + length1Minus;
-	float lengthPlus = length0Plus + length1Plus;
-	//lengthMinus += 1.0 / (length2Minus * 1000);
-	//lengthPlus += 1.0 / (length2Plus * 1000);
-	float lossMinus = VertexLossFunction(lengthMinus, currentAvgSize);
-	float lossPlus = VertexLossFunction(lengthPlus, currentAvgSize);
-
-	// Force third vertices to be on opposite sides of the pairing line
 	float length2Minus, length2Plus, lossLength; // Third vertices pairing
 	{
 		int i = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
@@ -588,6 +634,38 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		length2Plus = length(ProjectPointOnLine(otherVertex, otherVertex + lineDir, vertexPlus) - vertexPlus);
 		lossLength = length(ProjectPointOnLine(otherPositions[closestPair0.y], otherPositions[closestPair1.y], otherVertex) - otherVertex);
 	}
+
+#ifdef PER_VERTEX_ERROR
+	// Attract closest pairs to form an edge
+	float lossMinus0 = VertexLossFunction(length0Minus, currentAvgSize);
+	float lossPlus0 = VertexLossFunction(length0Plus, currentAvgSize);
+	float lossMinus1 = VertexLossFunction(length1Minus, currentAvgSize);
+	float lossPlus1 = VertexLossFunction(length1Plus, currentAvgSize);
+
+	// Force third vertices to be on opposite sides of the pairing line
+	float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
+	float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
+
+	// Accumulate per vertex loss
+	float lossDiff0 = lossMinus0 - lossPlus0;
+	float lossDiff1 = lossMinus1 - lossPlus1;
+	float lossDiff2 = lossMinus2 - lossPlus2;
+	float3 accumulateLossDiff = float3(lossDiff0, lossDiff1, lossDiff2) * 256 * 256;
+
+	int thirdVertex = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair0.x].z, accumulateLossDiff.x);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair1.x].z, accumulateLossDiff.y);
+	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + thirdVertex].z, accumulateLossDiff.z);
+	if (_DoPixelCountNorm > 0.5)
+		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].w, 1);
+#else
+	// Attract closest pairs to form an edge
+	float lengthMinus = length0Minus + length1Minus;
+	float lengthPlus = length0Plus + length1Plus;
+	float lossMinus = VertexLossFunction(lengthMinus, currentAvgSize);
+	float lossPlus = VertexLossFunction(lengthPlus, currentAvgSize);
+
+	// Force third vertices to be on opposite sides of the pairing line
 	float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
 	float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
 
@@ -595,7 +673,9 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 	float lossDiff = (lossMinus + lossMinus2) - (lossPlus + lossPlus2);
 	float accumulateLossDiff = lossDiff * 256 * 256;
 	InterlockedAdd(_PrimitiveMutationError[primitiveID].z, accumulateLossDiff);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].w, 1);
+	if (_DoPixelCountNorm > 0.5)
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].w, 1);
+#endif
 #endif
 }
 

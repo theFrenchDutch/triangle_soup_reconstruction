@@ -151,7 +151,6 @@ Shader "Custom/AdaptiveTriangleBlur"
 					lodLevel = log2(trianglePixelArea) * 0.666;
 					lodLevel = int(lodLevel);
 				}
-				//lodLevel = 6;
 
 				float4 blurredSample = BicubicTex2DLod(_MainTex, i.uv, _MainTex_TexelSize, lodLevel);
 				return float4(blurredSample.rgb, 1);
