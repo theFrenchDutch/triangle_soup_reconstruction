@@ -49,6 +49,7 @@ public class MutationOptimizer : MonoBehaviour
 	private GraphicsBuffer sortedPrimitiveIDBuffer;
 	private GraphicsBuffer sortedPrimitiveDistanceBuffer;
 	private ComputeBuffer sortedValidPrimitiveIDBuffer;
+	private ComputeBuffer structuralVertexWeldingBuffer;
 	private Bounds mesh3DSceneBounds;
 	private Texture2D[] colmapViewsTarget;
 	private Vector3[] colmapViewsPos;
@@ -169,6 +170,7 @@ public class MutationOptimizer : MonoBehaviour
 	public bool pixelCountNormalization = false;
 	public bool doAlphaLoss = true;
 	public bool doStructuralLoss = true;
+	public bool doStructuralWelding = true;
 	public bool doAllInputFramesForEachOptimStep = false;
 	public int viewsPerOptimStep = 1;
 	public int antitheticMutationsPerFrame = 16;
@@ -575,6 +577,8 @@ public class MutationOptimizer : MonoBehaviour
 			sortedPrimitiveDistanceBuffer.Release();
 		if (sortedValidPrimitiveIDBuffer != null)
 			sortedValidPrimitiveIDBuffer.Release();
+		if (structuralVertexWeldingBuffer != null)
+			structuralVertexWeldingBuffer.Release();
 		m_SorterArgs.resources.Dispose();
 	}
 
@@ -1524,6 +1528,12 @@ public class MutationOptimizer : MonoBehaviour
 		ZeroInitBuffer(primitiveBufferMutated[0]);
 		ZeroInitBuffer(optimStepMutationError[0]);
 		ZeroInitBuffer(optimStepCounterBuffer[0]);
+
+		// Structural loss mode
+		if (doStructuralWelding == true)
+		{
+			structuralVertexWeldingBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(int));
+		}
 
 		// Special Env Map mode
 		if (backgroundMode == BackgroundMode.EnvMap)

@@ -57,6 +57,7 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty pixelCountNormalization;
 	SerializedProperty doAlphaLoss;
 	SerializedProperty doStructuralLoss;
+	SerializedProperty doStructuralWelding;
 	SerializedProperty doAllInputFramesForEachOptimStep;
 	SerializedProperty viewsPerOptimStep;
 	SerializedProperty antitheticMutationsPerFrame;
@@ -141,6 +142,7 @@ public class MutationOptimizerEditor : Editor
 		pixelCountNormalization = serializedObject.FindProperty("pixelCountNormalization");
 		doAlphaLoss = serializedObject.FindProperty("doAlphaLoss");
 		doStructuralLoss = serializedObject.FindProperty("doStructuralLoss");
+		doStructuralWelding = serializedObject.FindProperty("doStructuralWelding");
 		doAllInputFramesForEachOptimStep = serializedObject.FindProperty("doAllInputFramesForEachOptimStep");
 		viewsPerOptimStep = serializedObject.FindProperty("viewsPerOptimStep");
 		antitheticMutationsPerFrame = serializedObject.FindProperty("antitheticMutationsPerFrame");
@@ -330,6 +332,7 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(pixelCountNormalization);
 		EditorGUILayout.PropertyField(doAlphaLoss);
 		EditorGUILayout.PropertyField(doStructuralLoss);
+		EditorGUILayout.PropertyField(doStructuralWelding);
 		if (targetMode.enumValueIndex == 2)
 			EditorGUILayout.PropertyField(doAllInputFramesForEachOptimStep);
 		if (targetMode.enumValueIndex != 0)

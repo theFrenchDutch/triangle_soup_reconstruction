@@ -162,7 +162,7 @@ MonoBehaviour:
   targetResolution: {x: 1024, y: 1024}
   targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
-  target3DMesh: {fileID: 625167293}
+  target3DMesh: {fileID: 868304314}
   target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
@@ -201,7 +201,7 @@ MonoBehaviour:
   lossMode: 1
   gradientsWarmupSteps: 16
   optimResolutionFactor: 1
-  trianglePerVertexError: 0
+  trianglePerVertexError: 1
   pixelCountNormalization: 0
   doAlphaLoss: 1
   doStructuralLoss: 1

@@ -12,6 +12,7 @@
 #pragma kernel CreateNewRandomMutation
 
 #pragma kernel AccumulateMutationLossStructural
+#pragma kernel WeldVertices
 
 #pragma kernel EnvMapResetMutationLossAccumulation
 #pragma kernel EnvMapAccumulateMutationLoss
@@ -67,6 +68,7 @@ RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsOptimStep;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments2;
 RWStructuredBuffer<int> _PrimitiveOptimStepCounter;
+RWStructuredBuffer<int> _StructuralVertexWeldingBuffer;
 
 int _CurrentPairingOffset;
 int _FramesUnseenBeforeKill;
@@ -635,47 +637,66 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 		lossLength = length(ProjectPointOnLine(otherPositions[closestPair0.y], otherPositions[closestPair1.y], otherVertex) - otherVertex);
 	}
 
+	// WELD VERTICES
+	float weldThreshold = length(currentPositions[closestPair0.x] - currentPositions[closestPair1.x]) * 0.1;
+	if (length(currentPositions[closestPair0.x] - otherPositions[closestPair0.y]) < weldThreshold
+		&& length(currentPositions[closestPair1.x] - otherPositions[closestPair1.y]) < weldThreshold)
+	{
+		// Weld pair 0
+		int outValue;
+		int2 pair0IDs = int2(primitiveID * 3 + closestPair0.x, closestNeighbour * 3 + closestPair0.y);
+		InterlockedMin(_StructuralVertexWeldingBuffer[pair0IDs.x], _StructuralVertexWeldingBuffer[pair0IDs.y], outValue);
+		InterlockedMin(_StructuralVertexWeldingBuffer[pair0IDs.y], _StructuralVertexWeldingBuffer[pair0IDs.x], outValue);
+
+		// Weld pair 1
+		int2 pair1IDs = int2(primitiveID * 3 + closestPair1.x, closestNeighbour * 3 + closestPair1.y);
+		InterlockedMin(_StructuralVertexWeldingBuffer[pair1IDs.x], _StructuralVertexWeldingBuffer[pair1IDs.y], outValue);
+		InterlockedMin(_StructuralVertexWeldingBuffer[pair1IDs.y], _StructuralVertexWeldingBuffer[pair1IDs.x], outValue);
+	}
+	else // ATTRACT VERTICES
+	{
 #ifdef PER_VERTEX_ERROR
-	// Attract closest pairs to form an edge
-	float lossMinus0 = VertexLossFunction(length0Minus, currentAvgSize);
-	float lossPlus0 = VertexLossFunction(length0Plus, currentAvgSize);
-	float lossMinus1 = VertexLossFunction(length1Minus, currentAvgSize);
-	float lossPlus1 = VertexLossFunction(length1Plus, currentAvgSize);
+		// Attract closest pairs to form an edge
+		float lossMinus0 = VertexLossFunction(length0Minus, currentAvgSize);
+		float lossPlus0 = VertexLossFunction(length0Plus, currentAvgSize);
+		float lossMinus1 = VertexLossFunction(length1Minus, currentAvgSize);
+		float lossPlus1 = VertexLossFunction(length1Plus, currentAvgSize);
 
-	// Force third vertices to be on opposite sides of the pairing line
-	float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
-	float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
+		// Force third vertices to be on opposite sides of the pairing line
+		float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
+		float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
 
-	// Accumulate per vertex loss
-	float lossDiff0 = lossMinus0 - lossPlus0;
-	float lossDiff1 = lossMinus1 - lossPlus1;
-	float lossDiff2 = lossMinus2 - lossPlus2;
-	float3 accumulateLossDiff = float3(lossDiff0, lossDiff1, lossDiff2) * 256 * 256;
+		// Accumulate per vertex loss
+		float lossDiff0 = lossMinus0 - lossPlus0;
+		float lossDiff1 = lossMinus1 - lossPlus1;
+		float lossDiff2 = lossMinus2 - lossPlus2;
+		float3 accumulateLossDiff = float3(lossDiff0, lossDiff1, lossDiff2) * 256 * 256;
 
-	int thirdVertex = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
-	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair0.x].z, accumulateLossDiff.x);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair1.x].z, accumulateLossDiff.y);
-	InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + thirdVertex].z, accumulateLossDiff.z);
-	if (_DoPixelCountNorm > 0.5)
-		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].w, 1);
+		int thirdVertex = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
+		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair0.x].z, accumulateLossDiff.x);
+		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair1.x].z, accumulateLossDiff.y);
+		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + thirdVertex].z, accumulateLossDiff.z);
+		if (_DoPixelCountNorm > 0.5)
+			InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].w, 1);
 #else
 	// Attract closest pairs to form an edge
-	float lengthMinus = length0Minus + length1Minus;
-	float lengthPlus = length0Plus + length1Plus;
-	float lossMinus = VertexLossFunction(lengthMinus, currentAvgSize);
-	float lossPlus = VertexLossFunction(lengthPlus, currentAvgSize);
+		float lengthMinus = length0Minus + length1Minus;
+		float lengthPlus = length0Plus + length1Plus;
+		float lossMinus = VertexLossFunction(lengthMinus, currentAvgSize);
+		float lossPlus = VertexLossFunction(lengthPlus, currentAvgSize);
 
-	// Force third vertices to be on opposite sides of the pairing line
-	float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
-	float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
+		// Force third vertices to be on opposite sides of the pairing line
+		float lossMinus2 = pow(1.0 - min(length2Minus, lossLength) / lossLength, 2.0);
+		float lossPlus2 = pow(1.0 - min(length2Plus, lossLength) / lossLength, 2.0);
 
-	// Accumulate total loss
-	float lossDiff = (lossMinus + lossMinus2) - (lossPlus + lossPlus2);
-	float accumulateLossDiff = lossDiff * 256 * 256;
-	InterlockedAdd(_PrimitiveMutationError[primitiveID].z, accumulateLossDiff);
-	if (_DoPixelCountNorm > 0.5)
-		InterlockedAdd(_PrimitiveMutationError[primitiveID].w, 1);
+		// Accumulate total loss
+		float lossDiff = (lossMinus + lossMinus2) - (lossPlus + lossPlus2);
+		float accumulateLossDiff = lossDiff * 256 * 256;
+		InterlockedAdd(_PrimitiveMutationError[primitiveID].z, accumulateLossDiff);
+		if (_DoPixelCountNorm > 0.5)
+			InterlockedAdd(_PrimitiveMutationError[primitiveID].w, 1);
 #endif
+	}
 #endif
 }
 
