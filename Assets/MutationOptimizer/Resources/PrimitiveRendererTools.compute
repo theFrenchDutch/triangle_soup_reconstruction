@@ -20,7 +20,6 @@
 #pragma kernel FfxParallelSortScan
 #pragma kernel FfxParallelSortScatter
 #pragma kernel FfxParallelSortCount
-// GPU sorting needs wave ops
 #pragma require wavebasic
 #pragma use_dxc
 #include "GpuSortFidelityFX.hlsl"

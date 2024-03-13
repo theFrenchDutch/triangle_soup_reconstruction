@@ -49,6 +49,7 @@ public class MutationOptimizer : MonoBehaviour
 	private GraphicsBuffer sortedPrimitiveIDBuffer;
 	private GraphicsBuffer sortedPrimitiveDistanceBuffer;
 	private ComputeBuffer sortedValidPrimitiveIDBuffer;
+	private ComputeBuffer structuralEdgeClosestNeighbourBuffer;
 	private ComputeBuffer structuralVertexWeldingBuffer;
 	private Bounds mesh3DSceneBounds;
 	private Texture2D[] colmapViewsTarget;
@@ -90,7 +91,10 @@ public class MutationOptimizer : MonoBehaviour
 	private int kernelAccumulateMutationGradientsResetLoss;
 	private int kernelApplyRandomMutation;
 	private int kernelCreateNewRandomMutation;
+	private int kernelMaintainClosestEdgeNeighbours;
+	private int kernelUpdateClosestEdgeNeighbours;
 	private int kernelAccumulateMutationLossStructural;
+	private int kernelWeldVertices;
 	private int kernelEnvMapResetMutationLossAccumulation;
 	private int kernelEnvMapAccumulateMutationLoss;
 	private int kernelEnvMapAccumulateMutationGradientsResetLoss;
@@ -231,8 +235,10 @@ public class MutationOptimizer : MonoBehaviour
 		kernelAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("AccumulateMutationGradientsResetLoss");
 		kernelApplyRandomMutation = mutationOptimizerCS.FindKernel("ApplyRandomMutation");
 		kernelCreateNewRandomMutation = mutationOptimizerCS.FindKernel("CreateNewRandomMutation");
+		kernelMaintainClosestEdgeNeighbours = mutationOptimizerCS.FindKernel("MaintainClosestEdgeNeighbours");
+		kernelUpdateClosestEdgeNeighbours = mutationOptimizerCS.FindKernel("UpdateClosestEdgeNeighbours");
 		kernelAccumulateMutationLossStructural = mutationOptimizerCS.FindKernel("AccumulateMutationLossStructural");
-		kernelEnvMapResetMutationLossAccumulation = mutationOptimizerCS.FindKernel("EnvMapResetMutationLossAccumulation");
+		kernelWeldVertices = mutationOptimizerCS.FindKernel("WeldVertices");
 		kernelEnvMapAccumulateMutationLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationLoss");
 		kernelEnvMapAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationGradientsResetLoss");
 		kernelEnvMapApplyRandomMutation = mutationOptimizerCS.FindKernel("EnvMapApplyRandomMutation");
@@ -440,6 +446,8 @@ public class MutationOptimizer : MonoBehaviour
 			ApplyOptimizationStep(0);
 			if (currentOptimStep > 1)
 				PerformPrimitiveResampling(0);
+			if (doStructuralLoss == true)
+				StructuralMaintainClosestEdgePairings();
 			ResetOptimizationStep(0);
 
 			if (backgroundMode == BackgroundMode.EnvMap)
@@ -577,6 +585,8 @@ public class MutationOptimizer : MonoBehaviour
 			sortedPrimitiveDistanceBuffer.Release();
 		if (sortedValidPrimitiveIDBuffer != null)
 			sortedValidPrimitiveIDBuffer.Release();
+		if (structuralEdgeClosestNeighbourBuffer != null)
+			structuralEdgeClosestNeighbourBuffer.Release();
 		if (structuralVertexWeldingBuffer != null)
 			structuralVertexWeldingBuffer.Release();
 		m_SorterArgs.resources.Dispose();
@@ -960,17 +970,21 @@ public class MutationOptimizer : MonoBehaviour
 		// Accumulate structural distance loss (only when optimizing positions !)
 		if (doStructuralLoss == true && currentParameterGroup == 0 && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
 		{
-			int kernelToUse3 = kernelAccumulateMutationLossStructural;
-			mutationOptimizerCS.SetTexture(kernelToUse3, "_TargetTexture", targetFrameBuffer);
-			mutationOptimizerCS.SetTexture(kernelToUse3, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
-			mutationOptimizerCS.SetTexture(kernelToUse3, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
+			// Update closest edge pairings
+			int kernelToUse3 = kernelUpdateClosestEdgeNeighbours;
 			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse3, "_PrimitiveKillCounters", primitiveKillCounters);
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedPlus", optimRenderTarget);
-			mutationOptimizerCS.Dispatch(kernelToUse3, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
+			mutationOptimizerCS.SetBuffer(kernelToUse3, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+			DispatchCompute1D(mutationOptimizerCS, kernelToUse3, primitiveBuffer[primitiveGroupToUse].count, 256);
+
+			// Apply loss for current edge pairings
+			int kernelToUse4 = kernelAccumulateMutationLossStructural;
+			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+			mutationOptimizerCS.SetBuffer(kernelToUse4, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+			mutationOptimizerCS.Dispatch(kernelToUse4, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 		}
 
 		// Accumulate gradients
@@ -1284,6 +1298,15 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(rasterMaterial, true, true, true);
 		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 	}
+	
+	public void StructuralMaintainClosestEdgePairings()
+	{
+		// Maintain closest edge pairings
+		int kernelToUse = kernelMaintainClosestEdgeNeighbours;
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBuffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
+	}
 
 
 
@@ -1532,7 +1555,17 @@ public class MutationOptimizer : MonoBehaviour
 		// Structural loss mode
 		if (doStructuralWelding == true)
 		{
+			ulong[] temp0 = new ulong[primitiveCount * 3];
+			for (int i = 0; i < primitiveCount * 3; i++)
+				temp0[i] = ulong.MaxValue;
+			structuralEdgeClosestNeighbourBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(ulong));
+			structuralEdgeClosestNeighbourBuffer.SetData(temp0);
+
+			int[] temp1 = new int[primitiveCount * 3];
+			for (int i = 0; i < primitiveCount * 3; i++)
+				temp1[i] = i;
 			structuralVertexWeldingBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(int));
+			structuralVertexWeldingBuffer.SetData(temp1);
 		}
 
 		// Special Env Map mode
