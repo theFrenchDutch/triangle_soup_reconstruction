@@ -69,7 +69,7 @@ int _MutationsPerFrame;
 int _OptimSuperSampling;
 int _CurrentMutation;
 RWStructuredBuffer<PrimitiveData> _PrimitiveBufferMutated;
-RWStructuredBuffer<int4> _PrimitiveMutationError;
+RWStructuredBuffer<int3> _PrimitiveMutationError;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsOptimStep;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments2;
@@ -79,7 +79,7 @@ RWStructuredBuffer<int> _StructuralVertexWeldingBuffer;
 
 int _CurrentPairingOffset;
 int _FramesUnseenBeforeKill;
-int _FramesPerOptimStep;
+int _ViewsPerOptimStep;
 float _MinPrimitiveWorldArea;
 RWStructuredBuffer<int> _PrimitiveKillCounters;
 AppendStructuredBuffer<uint> _AppendValidPrimitiveIDs;
@@ -128,13 +128,13 @@ void ResetMutationLossAccumulation(uint3 id : SV_DispatchThreadID)
 	// Reset primitive gradients
 	_PrimitiveGradientsOptimStep[threadID] = ZeroInitPrimitiveData();
 
-	// Reset primitive loss (need it here for binary mutation mode)
+	// Reset primitive error
 #ifdef PER_VERTEX_ERROR
-	_PrimitiveMutationError[threadID * 3 + 0] = int4(0, 0, 0, 0);;
-	_PrimitiveMutationError[threadID * 3 + 1] = int4(0, 0, 0, 0);;
-	_PrimitiveMutationError[threadID * 3 + 2] = int4(0, 0, 0, 0);;
+	_PrimitiveMutationError[threadID * 3 + 0] = int3(0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 1] = int3(0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 2] = int3(0, 0, 0);
 #else
-	_PrimitiveMutationError[threadID] = int4(0, 0, 0, 0);;
+	_PrimitiveMutationError[threadID] = int3(0, 0, 0);
 #endif
 }
 
@@ -232,9 +232,7 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	if (_DoStructuralLoss > 0.5)
 	{
 		float3 lossDiffStructural = float3(_PrimitiveMutationError[primitiveID * 3 + 0].z, _PrimitiveMutationError[primitiveID * 3 + 1].z, _PrimitiveMutationError[primitiveID * 3 + 2].z);
-		int pixelCountStructural = _PrimitiveMutationError[primitiveID * 3 + 0].w;
-		if (_DoPixelCountNorm > 0.5 && pixelCountStructural > 0)
-			lossDiffStructural /= (float3)pixelCountStructural;
+		lossDiffStructural /= (_ViewsPerOptimStep * _MutationsPerFrame);
 		lossDiff = lossDiffImage * (1.0 - _StructuralLossWeight) + lossDiffStructural * _StructuralLossWeight;
 	}
 	else
@@ -250,9 +248,7 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 	if (_DoStructuralLoss > 0.5)
 	{
 		float lossDiffStructural = _PrimitiveMutationError[primitiveID].z;
-		int pixelCountStructural = _PrimitiveMutationError[primitiveID].w;
-		if (_DoPixelCountNorm > 0.5 && pixelCountStructural > 0)
-			lossDiffStructural /= (float)pixelCountStructural;
+		lossDiffStructural /= (_ViewsPerOptimStep * _MutationsPerFrame);
 		lossDiff = lossDiffImage * (1.0 - _StructuralLossWeight) + lossDiffStructural * _StructuralLossWeight;
 	}
 	else
@@ -302,11 +298,11 @@ void AccumulateMutationGradientsResetLoss(uint3 id : SV_DispatchThreadID)
 
 	// Reset Primitive loss
 #ifdef PER_VERTEX_ERROR
-	_PrimitiveMutationError[threadID * 3 + 0] = int4(0, 0, 0, 0);
-	_PrimitiveMutationError[threadID * 3 + 1] = int4(0, 0, 0, 0);
-	_PrimitiveMutationError[threadID * 3 + 2] = int4(0, 0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 0] = int3(0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 1] = int3(0, 0, 0);
+	_PrimitiveMutationError[threadID * 3 + 2] = int3(0, 0, 0);
 #else
-	_PrimitiveMutationError[threadID] = int4(0, 0, 0, 0);
+	_PrimitiveMutationError[threadID] = int3(0, 0, 0);
 #endif
 }
 
@@ -510,14 +506,14 @@ float VertexLossFunction(float distance, float gaussParam)
 
 uint64_t Pack32UIntsTo64UInt(uint a, uint b)
 {
-	int64_t res = a << 32 + b;
+	uint64_t res = (uint64_t(a) << 32) | b;
 	return res;
 }
 
 void Unpack64UIntTo32UInts(uint64_t a, out uint b, out uint c)
 {
 	b = a >> 32;
-	c = a;
+	c = a & 0xFFFFFFFF;
 }
 
 [numthreads(256, 1, 1)]
@@ -639,6 +635,8 @@ void UpdateClosestEdgeNeighbours(uint3 threadID : SV_DispatchThreadID)
 		if (neighbourID != -1)
 			break;
 	}
+	if (neighbourID == -1)
+		return;
 
 	// Get neighbour data
 	PrimitiveData other = _PrimitiveBuffer[neighbourID];
@@ -693,7 +691,7 @@ void UpdateClosestEdgeNeighbours(uint3 threadID : SV_DispatchThreadID)
 		currentEdge = 1;
 	else// if (closestPair0.x == 2 && closestPair1.x == 0 || closestPair0.x == 0 && closestPair1.x == 2)
 		currentEdge = 2;
-	int currentEdgeID = primitiveID * 3 + currentEdge;
+	uint currentEdgeID = primitiveID * 3 + currentEdge;
 
 	int otherEdge;
 	if (closestPair0.y == 0 && closestPair1.y == 1 || closestPair0.y == 1 && closestPair1.y == 0)
@@ -702,10 +700,10 @@ void UpdateClosestEdgeNeighbours(uint3 threadID : SV_DispatchThreadID)
 		otherEdge = 1;
 	else// if (closestPair0.y == 2 && closestPair1.y == 0 || closestPair0.y == 0 && closestPair1.y == 2)
 		otherEdge = 2;
-	int otherEdgeID = neighbourID * 3 + otherEdge;
+	uint otherEdgeID = neighbourID * 3 + otherEdge;
 
 	float pairingDistTemp = (closestPair0.z / (256.0 * 256.0) + closestPair1.z / (256.0 * 256.0)) / 2.0;
-	int pairingDist = pairingDistTemp * 65536;
+	uint pairingDist = pairingDistTemp * 65536;
 	uint64_t packedDistAndID = Pack32UIntsTo64UInt(pairingDist, otherEdgeID);
 	uint64_t prevMinDist;
 	InterlockedMin(_StructuralEdgeClosestNeighbourBuffer[currentEdgeID], packedDistAndID, prevMinDist);
@@ -832,11 +830,9 @@ void AccumulateMutationLossStructural(uint3 id : SV_DispatchThreadID)
 		float3 accumulateLossDiff = float3(lossDiff0, lossDiff1, lossDiff2) * 65536;
 
 		int thirdVertex = (closestPair0.x == 0 || closestPair1.x == 0) ? (closestPair0.x == 1 || closestPair1.x == 1) ? 2 : 1 : 0;
-		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair0.x].z, accumulateLossDiff.x); // TODO: DON'T NEED INTELOCKS HERE
-		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + closestPair1.x].z, accumulateLossDiff.y);
-		InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + thirdVertex].z, accumulateLossDiff.z);
-		if (_DoPixelCountNorm > 0.5)
-			InterlockedAdd(_PrimitiveMutationError[primitiveID * 3 + 0].w, 1);
+		_PrimitiveMutationError[primitiveID * 3 + closestPair0.x].z += accumulateLossDiff.x;
+		_PrimitiveMutationError[primitiveID * 3 + closestPair1.x].z += accumulateLossDiff.y;
+		_PrimitiveMutationError[primitiveID * 3 + thirdVertex].z += accumulateLossDiff.z;
 #else
 		// Attract closest pairs to form an edge
 		float lengthMinus = length0Minus + length1Minus;
@@ -851,9 +847,7 @@ void AccumulateMutationLossStructural(uint3 id : SV_DispatchThreadID)
 		// Accumulate total loss
 		float lossDiff = (lossMinus + lossMinus2) - (lossPlus + lossPlus2);
 		float accumulateLossDiff = lossDiff * 65536;
-		InterlockedAdd(_PrimitiveMutationError[primitiveID].z, accumulateLossDiff);
-		if (_DoPixelCountNorm > 0.5)
-			InterlockedAdd(_PrimitiveMutationError[primitiveID].w, 1);
+		_PrimitiveMutationError[primitiveID].z += accumulateLossDiff;
 #endif
 	}
 }

@@ -447,7 +447,7 @@ public class MutationOptimizer : MonoBehaviour
 			if (currentOptimStep > 1)
 				PerformPrimitiveResampling(0);
 			if (doStructuralLoss == true)
-				StructuralMaintainClosestEdgePairings();
+				StructuralLossPostMaintenance();
 			ResetOptimizationStep(0);
 
 			if (backgroundMode == BackgroundMode.EnvMap)
@@ -976,15 +976,18 @@ public class MutationOptimizer : MonoBehaviour
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);
 			mutationOptimizerCS.SetTexture(kernelToUse3, "_DepthIDBufferMutatedPlus", optimRenderTarget);
 			mutationOptimizerCS.SetBuffer(kernelToUse3, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
-			DispatchCompute1D(mutationOptimizerCS, kernelToUse3, primitiveBuffer[primitiveGroupToUse].count, 256);
+			mutationOptimizerCS.Dispatch(kernelToUse3, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
 			// Apply loss for current edge pairings
-			int kernelToUse4 = kernelAccumulateMutationLossStructural;
-			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
-			mutationOptimizerCS.SetBuffer(kernelToUse4, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
-			mutationOptimizerCS.Dispatch(kernelToUse4, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
+			if (currentOptimStep > 0)
+			{
+				int kernelToUse4 = kernelAccumulateMutationLossStructural;
+				mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
+				mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBufferMutated", primitiveBufferMutated[primitiveGroupToUse]);
+				mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+				mutationOptimizerCS.SetBuffer(kernelToUse4, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+				DispatchCompute1D(mutationOptimizerCS, kernelToUse4, primitiveBuffer[primitiveGroupToUse].count, 256);
+			}
 		}
 
 		// Accumulate gradients
@@ -1299,13 +1302,15 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 	}
 	
-	public void StructuralMaintainClosestEdgePairings()
+	public void StructuralLossPostMaintenance()
 	{
 		// Maintain closest edge pairings
 		int kernelToUse = kernelMaintainClosestEdgeNeighbours;
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
+
+		// Weld vertices together
 	}
 
 
@@ -1325,10 +1330,11 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetFloat("_OptimizerBeta2", beta2);
 		computeShader.SetFloat("_MinPrimitiveWorldArea", minPrimitiveWorldArea);
 		computeShader.SetInt("_FramesUnseenBeforeKill", optimStepsUnseenBeforeKill);
-		computeShader.SetInt("_FramesPerOptimStep", targetMode == TargetMode.Image ? 1 : viewsPerOptimStep);
+		computeShader.SetInt("_ViewsPerOptimStep", targetMode == TargetMode.Image ? 1 : viewsPerOptimStep);
 		computeShader.SetFloat("_DoAlphaLoss", doAlphaLoss ? 1.0f : 0.0f);
 		computeShader.SetFloat("_AlphaContributingCutoff", alphaContributingCutoff);
 
+		computeShader.SetInt("_MutationsPerFrame", antitheticMutationsPerFrame);
 		computeShader.SetInt("_MutationsPerFrame", antitheticMutationsPerFrame);
 		computeShader.SetFloat("_OptimSuperSampling", optimResolutionFactor);
 		computeShader.SetFloat("_CurrentOptimizerMipLevel", math.log2(optimResolutionFactor));
@@ -1542,7 +1548,7 @@ public class MutationOptimizer : MonoBehaviour
 		gradientMoments1Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		gradientMoments2Buffer[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
 		primitiveBufferMutated[0] = new ComputeBuffer(primitiveCount, primitiveByteSize);
-		optimStepMutationError[0] = new ComputeBuffer(primitiveCount * (trianglePerVertexError ? 3 : 1), sizeof(int) * 4);
+		optimStepMutationError[0] = new ComputeBuffer(primitiveCount * (trianglePerVertexError ? 3 : 1), sizeof(int) * 3);
 		optimStepCounterBuffer[0] = new ComputeBuffer(primitiveCount, sizeof(int));
 		primitiveKillCounters = new ComputeBuffer(primitiveCount, sizeof(int));
 		ZeroInitBuffer(optimStepGradientsBuffer[0]);
@@ -1553,7 +1559,7 @@ public class MutationOptimizer : MonoBehaviour
 		ZeroInitBuffer(optimStepCounterBuffer[0]);
 
 		// Structural loss mode
-		if (doStructuralWelding == true)
+		if (doStructuralLoss == true)
 		{
 			ulong[] temp0 = new ulong[primitiveCount * 3];
 			for (int i = 0; i < primitiveCount * 3; i++)
@@ -1561,11 +1567,14 @@ public class MutationOptimizer : MonoBehaviour
 			structuralEdgeClosestNeighbourBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(ulong));
 			structuralEdgeClosestNeighbourBuffer.SetData(temp0);
 
-			int[] temp1 = new int[primitiveCount * 3];
-			for (int i = 0; i < primitiveCount * 3; i++)
-				temp1[i] = i;
-			structuralVertexWeldingBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(int));
-			structuralVertexWeldingBuffer.SetData(temp1);
+			if (doStructuralWelding == true)
+			{
+				int[] temp1 = new int[primitiveCount * 3];
+				for (int i = 0; i < primitiveCount * 3; i++)
+					temp1[i] = i;
+				structuralVertexWeldingBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(int));
+				structuralVertexWeldingBuffer.SetData(temp1);
+			}
 		}
 
 		// Special Env Map mode
@@ -1576,7 +1585,7 @@ public class MutationOptimizer : MonoBehaviour
 			gradientMoments1Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			gradientMoments2Buffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
 			primitiveBufferMutated[1] = new ComputeBuffer(envMapResolution * envMapResolution, primitiveByteSize2);
-			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int) * 4);
+			optimStepMutationError[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int) * 3);
 			optimStepCounterBuffer[1] = new ComputeBuffer(envMapResolution * envMapResolution, sizeof(int));
 			ZeroInitBuffer(optimStepGradientsBuffer[1]);
 			ZeroInitBuffer(gradientMoments1Buffer[1]);

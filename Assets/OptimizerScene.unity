@@ -160,7 +160,7 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 2
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 8164078560115793440}
   target3DCOLMAPFolder: lego_upper
@@ -168,8 +168,8 @@ MonoBehaviour:
   colmapUseMasking: 0
   optimPrimitive: 0
   useAlternateTriangleDefinition: 0
-  primitiveCount: 25000
-  primitiveInitSize: 0.01
+  primitiveCount: 100
+  primitiveInitSize: 0.1
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
@@ -191,7 +191,7 @@ MonoBehaviour:
   pause: 0
   stepForward: 0
   displayMode: 0
-  separateFreeViewCamera: 0
+  separateFreeViewCamera: 1
   debugTriangleView: 0
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0.0001}
@@ -202,7 +202,7 @@ MonoBehaviour:
   gradientsWarmupSteps: 16
   optimResolutionFactor: 1
   trianglePerVertexError: 1
-  pixelCountNormalization: 0
+  pixelCountNormalization: 1
   doAlphaLoss: 1
   doStructuralLoss: 1
   doStructuralWelding: 0
@@ -220,7 +220,7 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.5
+  structuralLossWeight: 1
   structuralLossDistFactor: 1
   doPrimitiveResampling: 1
   resamplingInterval: 25
