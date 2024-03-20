@@ -665,8 +665,8 @@ void UpdateClosestEdgeNeighbours(uint3 threadID : SV_DispatchThreadID)
 			Unpack64UIntTo32UInts(packedDistAndID, otherPairingDist, otherPairedEdgeID);
 
 			//if (pairingDist < closestEdgePairingDist && (otherPairedEdgeID > _PrimitiveCount * 3 || pairingDistInt < otherPairingDist))
-			//if (pairingDist < closestEdgePairingDist && otherPairedEdgeID > _PrimitiveCount * 3)
-			if (pairingDist < closestEdgePairingDist)
+			if (pairingDist < closestEdgePairingDist && otherPairedEdgeID > _PrimitiveCount * 3)
+			//if (pairingDist < closestEdgePairingDist)
 			{
 				closestEdgePairingDist = pairingDist;
 				closestEdgePairing = int2(i, j);
@@ -834,6 +834,36 @@ void WeldVertices(uint3 id : SV_DispatchThreadID)
 	uint threadID = id.x + _Dispatch1DOffset;
 	if (threadID >= _PrimitiveCount)
 		return;
+
+	int primitiveID = threadID;
+	PrimitiveData current = _PrimitiveBuffer[primitiveID];
+	float3 currentPositions[3];
+	currentPositions[0] = GetWorldVertex(current.geometry, 0);
+	currentPositions[1] = GetWorldVertex(current.geometry, 1);
+	currentPositions[2] = GetWorldVertex(current.geometry, 2);
+	PrimitiveData currentMutated = _PrimitiveBufferMutated[primitiveID];
+	float3 currentMutatedPositions[3];
+	currentMutatedPositions[0] = GetWorldVertex(currentMutated.geometry, 0);
+	currentMutatedPositions[1] = GetWorldVertex(currentMutated.geometry, 1);
+	currentMutatedPositions[2] = GetWorldVertex(currentMutated.geometry, 2);
+	float currentAvgSize = (length(currentPositions[0] - currentPositions[1]) + length(currentPositions[1] - currentPositions[2]) + length(currentPositions[2] - currentPositions[0])) / 3.0;
+	float3 currentAvgPos = (currentPositions[0] + currentPositions[1] + currentPositions[1]) / 3.0;
+
+	for (int i = 0; i < 3; i++)
+	{
+		// Fetch edge pairing data
+		uint64_t packedDistAndID = _StructuralEdgeClosestNeighbourBuffer[threadID * 3 + i];
+		uint dist, edgeID;
+		Unpack64UIntTo32UInts(packedDistAndID, dist, edgeID);
+		uint neighbourID = edgeID / 3;
+		if (edgeID > _PrimitiveCount * 3)
+			continue;
+
+		// Fetch neighbour edge pairing data
+		uint64_t otherPackedDistAndID = _StructuralEdgeClosestNeighbourBuffer[edgeID];
+		uint otherPairingDist, otherPairedEdgeID;
+		Unpack64UIntTo32UInts(otherPackedDistAndID, otherPairingDist, otherPairedEdgeID);
+	}
 
 	// WELD VERTICES
 	/*float weldThreshold = length(currentPositions[closestPair0.x] - currentPositions[closestPair1.x]) * 0.1;

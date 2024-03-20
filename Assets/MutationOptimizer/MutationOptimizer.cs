@@ -446,8 +446,8 @@ public class MutationOptimizer : MonoBehaviour
 			ApplyOptimizationStep(0);
 			if (currentOptimStep > 1)
 				PerformPrimitiveResampling(0);
-			if (doStructuralLoss == true)
-				StructuralLossPostMaintenance();
+			if (doStructuralLoss == true || doStructuralWelding == true)
+				PostStepStructuralStuff();
 			ResetOptimizationStep(0);
 
 			if (backgroundMode == BackgroundMode.EnvMap)
@@ -968,7 +968,7 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.Dispatch(kernelToUse, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
 		// Accumulate structural distance loss (only when optimizing positions !)
-		if (doStructuralLoss == true && currentParameterGroup == 0 && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
+		if ((doStructuralLoss == true || doStructuralWelding == true) && currentParameterGroup == 0 && primitiveGroupToUse == 0 && transparencyMode == TransparencyMode.None)
 		{
 			// Update closest edge pairings
 			int kernelToUse3 = kernelUpdateClosestEdgeNeighbours;
@@ -979,7 +979,7 @@ public class MutationOptimizer : MonoBehaviour
 			mutationOptimizerCS.Dispatch(kernelToUse3, (int)math.ceil(internalOptimResolution.x / 16.0f), (int)math.ceil(internalOptimResolution.y / 16.0f), 1);
 
 			// Apply loss for current edge pairings
-			if (currentOptimStep > 0)
+			if (currentOptimStep > 0 && doStructuralLoss == true)
 			{
 				int kernelToUse4 = kernelAccumulateMutationLossStructural;
 				mutationOptimizerCS.SetBuffer(kernelToUse4, "_PrimitiveBuffer", primitiveBuffer[primitiveGroupToUse]);
@@ -1302,7 +1302,7 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 	}
 	
-	public void StructuralLossPostMaintenance()
+	public void PostStepStructuralStuff()
 	{
 		// Maintain closest edge pairings
 		int kernelToUse = kernelMaintainClosestEdgeNeighbours;
@@ -1311,6 +1311,12 @@ public class MutationOptimizer : MonoBehaviour
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
 
 		// Weld vertices together
+		int kernelToUse2 = kernelWeldVertices;
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+		mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
+
 	}
 
 
