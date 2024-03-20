@@ -2,7 +2,6 @@
 #pragma require Int64
 #pragma require Int64BufferAtomics
 
-#pragma multi_compile NORMAL_POSITIONS ALTERNATE_POSITIONS
 #pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
 #pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 #pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
@@ -113,6 +112,8 @@ float _DoGradientDescent;
 float _DoStructuralLoss;
 float _StructuralLossWeight;
 float _StructuralLossDistFactor;
+float _StructuralWeldDistFactor;
+float _DoVertexWelding;
 float _DoPixelCountNorm;
 
 
@@ -581,6 +582,7 @@ void MaintainClosestEdgeNeighbours(uint3 id : SV_DispatchThreadID)
 		if (pairingDist > currentAvgSize * _StructuralLossDistFactor)
 		{
 			_StructuralEdgeClosestNeighbourBuffer[threadID * 3 + i] = 0xFFFFFFFFFFFFFFFF;
+			continue;
 		}
 		else
 		{
@@ -595,6 +597,40 @@ void MaintainClosestEdgeNeighbours(uint3 id : SV_DispatchThreadID)
 		if (otherPairedEdgeID < _PrimitiveCount * 3)
 		{
 			_StructuralEdgeClosestNeighbourBuffer[threadID * 3 + i] = 0xFFFFFFFFFFFFFFFF;
+			continue;
+		}
+
+		// Weld vertices
+		if (_DoVertexWelding > 0.5 && pairingDist < currentAvgSize * _StructuralWeldDistFactor)
+		{
+			// Weld pair 0
+			int outValue;
+			int2 pair0IDs = int2(primitiveID * 3 + closestPair0.x, neighbourID * 3 + closestPair0.y);
+			InterlockedMin(_StructuralVertexWeldingBuffer[pair0IDs.x], _StructuralVertexWeldingBuffer[pair0IDs.y], outValue);
+			InterlockedMin(_StructuralVertexWeldingBuffer[pair0IDs.y], _StructuralVertexWeldingBuffer[pair0IDs.x], outValue);
+
+			// Weld pair 1
+			int2 pair1IDs = int2(primitiveID * 3 + closestPair1.x, neighbourID * 3 + closestPair1.y);
+			InterlockedMin(_StructuralVertexWeldingBuffer[pair1IDs.x], _StructuralVertexWeldingBuffer[pair1IDs.y], outValue);
+			InterlockedMin(_StructuralVertexWeldingBuffer[pair1IDs.y], _StructuralVertexWeldingBuffer[pair1IDs.x], outValue);
+		}
+	}
+
+	// Maintain welding indirection
+	if (_DoVertexWelding > 0.5)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			int temp = _StructuralVertexWeldingBuffer[threadID * 3 + i];
+			int temp2 = _StructuralVertexWeldingBuffer[temp];
+			if (temp2 != temp)
+				_StructuralVertexWeldingBuffer[threadID * 3 + i] = temp2;
+
+			/*int current = threadID * 3 + i;
+			while (_StructuralVertexWeldingBuffer[current] != current)
+			{
+				current = _StructuralVertexWeldingBuffer[current];
+			}*/
 		}
 	}
 }
@@ -860,11 +896,6 @@ void WeldVertices(uint3 id : SV_DispatchThreadID)
 	currentPositions[0] = GetWorldVertex(current.geometry, 0);
 	currentPositions[1] = GetWorldVertex(current.geometry, 1);
 	currentPositions[2] = GetWorldVertex(current.geometry, 2);
-	PrimitiveData currentMutated = _PrimitiveBufferMutated[primitiveID];
-	float3 currentMutatedPositions[3];
-	currentMutatedPositions[0] = GetWorldVertex(currentMutated.geometry, 0);
-	currentMutatedPositions[1] = GetWorldVertex(currentMutated.geometry, 1);
-	currentMutatedPositions[2] = GetWorldVertex(currentMutated.geometry, 2);
 	float currentAvgSize = (length(currentPositions[0] - currentPositions[1]) + length(currentPositions[1] - currentPositions[2]) + length(currentPositions[2] - currentPositions[0])) / 3.0;
 	float3 currentAvgPos = (currentPositions[0] + currentPositions[1] + currentPositions[1]) / 3.0;
 
@@ -875,13 +906,56 @@ void WeldVertices(uint3 id : SV_DispatchThreadID)
 		uint dist, edgeID;
 		Unpack64UIntTo32UInts(packedDistAndID, dist, edgeID);
 		uint neighbourID = edgeID / 3;
-		if (edgeID >= _PrimitiveCount * 3)
+		if (neighbourID > _PrimitiveCount)
 			continue;
 
-		// Fetch neighbour edge pairing data
+		int2 closestPair0 = int2((i + 0) % 3, -1);
+		int2 closestPair1 = int2((i + 1) % 3, -1);
+		uint neighbourEdge = edgeID % 3;
+		if (neighbourEdge == 0)
+		{
+			closestPair0.y = 0;
+			closestPair1.y = 1;
+		}
+		else if (neighbourEdge == 1)
+		{
+			closestPair0.y = 1;
+			closestPair1.y = 2;
+		}
+		else
+		{
+			closestPair0.y = 2;
+			closestPair1.y = 0;
+		}
+
+		// Fetch neighbour data
+		PrimitiveData other = _PrimitiveBuffer[neighbourID];
+		float3 otherPositions[3];
+		otherPositions[0] = GetWorldVertex(other.geometry, 0);
+		otherPositions[1] = GetWorldVertex(other.geometry, 1);
+		otherPositions[2] = GetWorldVertex(other.geometry, 2);
+		float otherAvgSize = (length(otherPositions[0] - otherPositions[1]) + length(otherPositions[1] - otherPositions[2]) + length(otherPositions[2] - otherPositions[0])) / 3.0;
+		float3 otherAvgPos = (otherPositions[0] + otherPositions[1] + otherPositions[1]) / 3.0;
+
+		// Check if under welding distance
+		float3 currentPosA = currentPositions[closestPair0.x];
+		float3 currentPosB = currentPositions[closestPair1.x];
+		float3 otherPosA = otherPositions[closestPair0.y];
+		float3 otherPosB = otherPositions[closestPair1.y];
+		float pairingDist = min(length(currentPosA - otherPosA) + length(currentPosB - otherPosB), length(currentPosA - otherPosB) + length(currentPosB - otherPosA));
+		if (pairingDist < currentAvgSize * _StructuralWeldDistFactor)
+		{
+			_StructuralEdgeClosestNeighbourBuffer[threadID * 3 + i] = 0xFFFFFFFFFFFFFFFF;
+		}
+
+		// Check if other edge isn't free anymore
 		uint64_t otherPackedDistAndID = _StructuralEdgeClosestNeighbourBuffer[edgeID];
 		uint otherPairingDist, otherPairedEdgeID;
 		Unpack64UIntTo32UInts(otherPackedDistAndID, otherPairingDist, otherPairedEdgeID);
+		if (otherPairedEdgeID < _PrimitiveCount * 3)
+		{
+			_StructuralEdgeClosestNeighbourBuffer[threadID * 3 + i] = 0xFFFFFFFFFFFFFFFF;
+		}
 	}
 
 	// WELD VERTICES

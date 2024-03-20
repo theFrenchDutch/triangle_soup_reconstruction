@@ -19,7 +19,6 @@ Shader "Custom/TrianglePrimitiveRaster"
 			#pragma vertex Vertex
 			#pragma fragment Fragment
 			#include "UnityCG.cginc"
-			#pragma multi_compile NORMAL_POSITIONS ALTERNATE_POSITIONS
 			#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
 			#pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 			#pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
@@ -36,6 +35,7 @@ Shader "Custom/TrianglePrimitiveRaster"
 
 			// ========================== VERTEX SHADER ==========================
 			StructuredBuffer<PrimitiveData> _PrimitiveBuffer;
+			StructuredBuffer<int> _StructuralVertexWeldingBuffer;
 
 			struct Varyings
 			{
@@ -48,8 +48,9 @@ Shader "Custom/TrianglePrimitiveRaster"
 			Varyings Vertex(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 			{
 				// Retrieve vertex attributes
-				PrimitiveData primitiveData = _PrimitiveBuffer[instanceID];
-				float3 worldPos = GetWorldVertex(primitiveData.geometry, vertexID);
+				int globalVertexID = instanceID * 3 + vertexID;
+				float3 worldPos = GetWorldVertex(globalVertexID);
+				vertexID = globalVertexID % 3;
 
 				// Camera projection
 				float4 clipPos = mul(_CameraMatrixVP, float4(worldPos, 1));

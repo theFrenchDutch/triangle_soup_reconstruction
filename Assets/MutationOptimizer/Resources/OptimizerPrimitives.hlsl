@@ -243,9 +243,6 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 
 // ========================= PRIMITIVE SIZE =========================
 #define GEOMETRY_SIZE 9
-#ifdef ALTERNATE_POSITIONS
-#define GEOMETRY_SIZE 13
-#endif
 
 #define ALPHA_SIZE 0
 #ifndef OPAQUE_RENDER
@@ -281,13 +278,7 @@ float3 ElevationAzimuthToDirection(float2 azimuthElevation)
 // ======================= GEOMETRY =======================
 struct Geometry
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 position;
-	float4 rotation;
-	float2 offsets[3];
-#else
 	float3 positions[3];
-#endif
 };
 
 float _LearningRatePosition;
@@ -297,106 +288,65 @@ float _LearningRateOffsets;
 Geometry ZeroInitGeometry()
 {
 	Geometry geometry;
-
-#ifdef ALTERNATE_POSITIONS
-	geometry.position = float3(0, 0, 0);
-	geometry.rotation = float4(0, 0, 0, 0);
-	geometry.offsets[0] = float2(0, 0);
-	geometry.offsets[1] = float2(0, 0);
-	geometry.offsets[2] = float2(0, 0);
-#else
 	geometry.positions[0] = float3(0, 0, 0);
 	geometry.positions[1] = float3(0, 0, 0);
 	geometry.positions[2] = float3(0, 0, 0);
-#endif
-
 	return geometry;
 }
 
 Geometry GetFloatArrayAsGeometry(float asArray[PRIMITIVE_SIZE], inout int offset)
 {
 	Geometry geometry;
-
-#ifdef ALTERNATE_POSITIONS
-	geometry.position = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
-	geometry.rotation = float4(asArray[offset++], asArray[offset++], asArray[offset++], asArray[offset++]);
-	geometry.offsets[0] = float2(asArray[offset++], asArray[offset++]);
-	geometry.offsets[1] = float2(asArray[offset++], asArray[offset++]);
-	geometry.offsets[2] = float2(asArray[offset++], asArray[offset++]);
-#else
 	geometry.positions[0] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
 	geometry.positions[1] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
 	geometry.positions[2] = float3(asArray[offset++], asArray[offset++], asArray[offset++]);
-#endif
-
 	return geometry;
 }
 
 void GetGeometryAsFloatArray(Geometry geometry, inout float asArray[PRIMITIVE_SIZE], inout int offset)
 {
-#ifdef ALTERNATE_POSITIONS
-	asArray[offset++] = geometry.position.x; asArray[offset++] = geometry.position.y; asArray[offset++] = geometry.position.z;
-	asArray[offset++] = geometry.rotation.x; asArray[offset++] = geometry.rotation.y; asArray[offset++] = geometry.rotation.z; asArray[offset++] = geometry.rotation.w;
-	asArray[offset++] = geometry.offsets[0].x; asArray[offset++] = geometry.offsets[0].y;
-	asArray[offset++] = geometry.offsets[1].x; asArray[offset++] = geometry.offsets[1].y;
-	asArray[offset++] = geometry.offsets[2].x; asArray[offset++] = geometry.offsets[2].y;
-#else
 	asArray[offset++] = geometry.positions[0].x; asArray[offset++] = geometry.positions[0].y; asArray[offset++] = geometry.positions[0].z;
 	asArray[offset++] = geometry.positions[1].x; asArray[offset++] = geometry.positions[1].y; asArray[offset++] = geometry.positions[1].z;
 	asArray[offset++] = geometry.positions[2].x; asArray[offset++] = geometry.positions[2].y; asArray[offset++] = geometry.positions[2].z;
-#endif
 }
 
 void GetGeometryLearningRatesFloatArray(inout float asArray[PRIMITIVE_SIZE], inout int offset)
 {
-#ifdef ALTERNATE_POSITIONS
-	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
-	asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation; asArray[offset++] = _LearningRateRotation;
-	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
-	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
-	asArray[offset++] = _LearningRateOffsets; asArray[offset++] = _LearningRateOffsets;
-#else
 	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
 	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
 	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
-#endif
 }
 
-float3 GetWorldVertex(Geometry geometry, int i)
+float3 GetWorldVertex(StructuredBuffer<PrimitiveData> primitiveBuffer, StructuredBuffer<int> weldingBuffer, inout int globalVertexID)
 {
-#ifdef ALTERNATE_POSITIONS
-	float4 q = geometry.rotation;
-	float3 right = float3(1 - 2 * q.y * q.y - 2 * q.z * q.z, 2 * q.x * q.y + 2 * q.w * q.z, 2 * q.x * q.z - 2 * q.w * q.y);
-	float3 up = float3(2 * q.x * q.y - 2 * q.w * q.z, 1 - 2 * q.x * q.x - 2 * q.z * q.z, 2 * q.y * q.z + 2 * q.w * q.x);
-	float3 forward = float3(2 * q.x * q.z + 2 * q.w * q.y, 2 * q.y * q.z - 2 * q.w * q.x, 1 - 2 * q.x * q.x - 2 * q.y * q.y);
-	return geometry.position + right * geometry.offsets[i].x + up * geometry.offsets[i].y;
-#else
-	return geometry.positions[i];
-#endif
+	// Apply vertex welding indirection
+	int primitiveID = globalVertexID / 3;
+	int vertexID = globalVertexID % 3;
+	if (_DoVertexWelding > 0.5)
+	{
+		int temp = weldingBuffer[i];
+		globalVertexID = temp;
+		primitiveID = temp / 3;
+		vertexID = temp % 3;
+	}
+	Geometry geometry = primitiveBuffer[primitiveID];
+	return geometry.positions[vertexID];
 }
 
-float GetTriangleArea(Geometry geometry)
+float GetTriangleArea(StructuredBuffer<PrimitiveData> primitiveBuffer, StructuredBuffer<int> weldingBuffer, int primitiveID)
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 v0 = GetWorldVertex(geometry, 0);
-	float3 v1 = GetWorldVertex(geometry, 1);
-	float3 v2 = GetWorldVertex(geometry, 2);
+	float3 v0 = GetWorldVertex(primitiveID * 3 + 0);
+	float3 v1 = GetWorldVertex(primitiveID * 3 + 1);
+	float3 v2 = GetWorldVertex(primitiveID * 3 + 2);
 	return Unsigned3DTriangleArea(v0, v1, v2);
-#else
-	return Unsigned3DTriangleArea(geometry.positions[0], geometry.positions[1], geometry.positions[2]);
-#endif
 }
 
 float3 GetPrimitiveWorldDepthSortPosition(Geometry geometry)
 {
-#ifdef ALTERNATE_POSITIONS
-	float3 v0 = GetWorldVertex(geometry, 0);
-	float3 v1 = GetWorldVertex(geometry, 1);
-	float3 v2 = GetWorldVertex(geometry, 2);
-	return (v0, v1, v2) / 3.0 + geometry.position;
-#else
-	return (geometry.positions[0] + geometry.positions[1] + geometry.positions[2]) / 3.0;
-#endif
+	float3 v0 = GetWorldVertex(primitiveID * 3 + 0);
+	float3 v1 = GetWorldVertex(primitiveID * 3 + 1);
+	float3 v2 = GetWorldVertex(primitiveID * 3 + 2);
+	return (v0 + v1 + v2) / 3.0;
 }
 
 Geometry PostProcessGeometry(Geometry geometry)

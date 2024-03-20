@@ -222,7 +222,7 @@ MonoBehaviour:
   learningRateEnvMap: 0.01
   structuralLossWeight: 0.75
   structuralLossDistFactor: 1
-  doPrimitiveResampling: 0
+  doPrimitiveResampling: 1
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 2
   minPrimitiveWorldArea: 0.0001

@@ -67,8 +67,6 @@ public class MutationOptimizer : MonoBehaviour
 	private int optimStepsSeparateCount = 1;
 	private float2 learningRateGlobalStartEnd = -1.0f;
 	private float2 learningRatePositionStartEnd = -1.0f;
-	private float2 learningRateRotationStartEnd = -1.0f;
-	private float2 learningRateOffsetsStartEnd = -1.0f;
 	private int primitiveDoublingCounter = 0;
 	private int resolutionDoublingCounter = 0;
 	private Bounds colmapTrimBounds;
@@ -133,7 +131,6 @@ public class MutationOptimizer : MonoBehaviour
 	public float colmapRescaler = 1.0f;
 	public bool colmapUseMasking = false;
 	public PrimitiveType optimPrimitive = PrimitiveType.TrianglesSolidUnlit;
-	public bool useAlternateTriangleDefinition = false;
 	public int primitiveCount = 1;
 	public float primitiveInitSize = 1.0f;
 	public int primitiveInitSeed = -1;
@@ -185,13 +182,12 @@ public class MutationOptimizer : MonoBehaviour
 	[Range(0.0f, 1.0f)] public float beta1 = 0.9f;
 	[Range(0.0f, 1.0f)] public float beta2 = 0.999f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRatePosition = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateRotation = 0.01f;
-	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateOffsets = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateColor = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateAlpha = 0.01f;
 	[LogarithmicRange(0.0f, 0.001f, 1.0f)] public float learningRateEnvMap = 0.01f;
 	[Range(0.0f, 1.0f)] public float structuralLossWeight = 0.5f;
 	[Range(0.0f, 2.0f)] public float structuralLossDistFactor = 1.0f;
+	[Range(0.0f, 2.0f)] public float structuralWeldDistFactor = 1.0f;
 
 	public bool doPrimitiveResampling = true;
 	public int resamplingInterval = 1;
@@ -268,8 +264,6 @@ public class MutationOptimizer : MonoBehaviour
 		if (learningRatePositionStartEnd.x < 0.0f)
 		{
 			learningRatePositionStartEnd = new float2(learningRatePosition * lrGeometryStartMulAndSpeed.x, learningRatePosition);
-			learningRateRotationStartEnd = new float2(learningRateRotation * lrGeometryStartMulAndSpeed.x, learningRateRotation);
-			learningRateOffsetsStartEnd = new float2(learningRateOffsets * lrGeometryStartMulAndSpeed.x, learningRateOffsets);
 		}
 		if (learningRateGlobalStartEnd.x < 0.0f)
 		{
@@ -683,6 +677,7 @@ public class MutationOptimizer : MonoBehaviour
 		rasterMaterial.SetInt("_MaxFragmentsPerPixel", maxFragmentsPerPixel);
 		rasterMaterial.SetBuffer("_PrimitiveBuffer", primitiveBufferToUse[0]);
 		rasterMaterial.SetFloat("_UseSortedPrimitiveIDs", 0.0f);
+		rasterMaterial.SetFloat("_DoVertexWelding", doStructuralWelding == true ? 1.0f : 0.0f);
 
 		// Resolve render target color
 		if (transparencyMode == TransparencyMode.None)
@@ -861,8 +856,6 @@ public class MutationOptimizer : MonoBehaviour
 		if (lrGeometryStartMulAndSpeed.x != 0 && lrGeometryStartMulAndSpeed.y != 0)
 		{
 			learningRatePosition = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRatePositionStartEnd.x - learningRatePositionStartEnd.y) + learningRatePositionStartEnd.y;
-			learningRateRotation = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRateRotationStartEnd.x - learningRateRotationStartEnd.y) + learningRateRotationStartEnd.y;
-			learningRateOffsets = math.exp(-currentOptimStep * lrGeometryStartMulAndSpeed.y) * (learningRateOffsetsStartEnd.x - learningRateOffsetsStartEnd.y) + learningRateOffsetsStartEnd.y;
 		}
 
 		if (lrGlobalStartMulAndSpeed.x != 0 && lrGlobalStartMulAndSpeed.y != 0)
@@ -878,8 +871,6 @@ public class MutationOptimizer : MonoBehaviour
 		if (parameterSeparationMode == ParameterOptimSeparationMode.None || dontDoSeparation == true)
 		{
 			mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateRotation", learningRateRotation * learningRateModifier);
-			mutationOptimizerCS.SetFloat("_LearningRateOffsets", learningRateOffsets * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateColor", learningRateColor * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateAlpha", learningRateAlpha * learningRateModifier);
 			mutationOptimizerCS.SetFloat("_LearningRateEnvMap", learningRateEnvMap * learningRateModifier);
@@ -905,8 +896,6 @@ public class MutationOptimizer : MonoBehaviour
 				if (currentParameterGroup % 2 == 0)
 				{
 					mutationOptimizerCS.SetFloat("_LearningRatePosition", learningRatePosition * learningRateModifier);
-					mutationOptimizerCS.SetFloat("_LearningRateRotation", learningRateRotation * learningRateModifier);
-					mutationOptimizerCS.SetFloat("_LearningRateOffsets", learningRateOffsets * learningRateModifier);
 				}
 				else
 				{
@@ -925,8 +914,6 @@ public class MutationOptimizer : MonoBehaviour
 			{
 				List<Tuple<string, float>> usedParams = new List<Tuple<string, float>>();
 				if (learningRatePosition > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRatePosition", learningRatePosition));
-				if (useAlternateTriangleDefinition == true && learningRateRotation > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateRotation", learningRateRotation));
-				if (useAlternateTriangleDefinition == true && learningRateOffsets > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateOffsets", learningRateOffsets));
 				if (learningRateColor > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateColor", learningRateColor));
 				if (transparencyMode != TransparencyMode.None && learningRateAlpha > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateAlpha", learningRateAlpha));
 				if (backgroundMode == BackgroundMode.EnvMap && learningRateEnvMap > 0.0f) usedParams.Add(new Tuple<string, float>("_LearningRateEnvMap", learningRateEnvMap));
@@ -1306,19 +1293,20 @@ public class MutationOptimizer : MonoBehaviour
 	{
 		// Maintain closest edge pairings
 		int kernelToUse = kernelMaintainClosestEdgeNeighbours;
+		mutationOptimizerCS.SetFloat("_DoVertexWelding", doStructuralWelding == true ? 1.0f : 0.0f);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
 
 		// Weld vertices together
-		if (doStructuralWelding == true)
-		{
-			int kernelToUse2 = kernelWeldVertices;
-			mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
-			mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
-			mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
-			DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
-		}
+		//if (doStructuralWelding == true)
+		//{
+		//	int kernelToUse2 = kernelWeldVertices;
+		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
+		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
+		//	DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
+		//}
 	}
 
 
@@ -1359,6 +1347,7 @@ public class MutationOptimizer : MonoBehaviour
 		computeShader.SetFloat("_StructuralLossWeight", structuralLossWeight);
 		computeShader.SetFloat("_DoStructuralLoss", doStructuralLoss == true ? 1.0f : 0.0f);
 		computeShader.SetFloat("_StructuralLossDistFactor", structuralLossDistFactor);
+		computeShader.SetFloat("_StructuralWeldDistFactor", structuralWeldDistFactor);
 		computeShader.SetFloat("_DoPixelCountNorm", pixelCountNormalization == true ? 1.0f : 0.0f);
 	}
 
@@ -1657,17 +1646,11 @@ public class MutationOptimizer : MonoBehaviour
 
 		if (checkOptimPrimitive == true)
 		{
-			bool NORMAL_POSITIONS = keywords.Contains("NORMAL_POSITIONS");
-			bool ALTERNATE_POSITIONS = keywords.Contains("ALTERNATE_POSITIONS");
 			bool TRIANGLE_SOLID = keywords.Contains("TRIANGLE_SOLID");
 			bool TRIANGLE_GRADIENT = keywords.Contains("TRIANGLE_GRADIENT");
 			bool TRIANGLE_GAUSSIAN = keywords.Contains("TRIANGLE_GAUSSIAN");
 			bool PER_VERTEX_ERROR = keywords.Contains("PER_VERTEX_ERROR");
 			bool PER_TRIANGLE_ERROR = keywords.Contains("PER_TRIANGLE_ERROR");
-			if (NORMAL_POSITIONS != !useAlternateTriangleDefinition)
-				return false;
-			if (ALTERNATE_POSITIONS != useAlternateTriangleDefinition)
-				return false;
 			if (TRIANGLE_SOLID != (optimPrimitive == PrimitiveType.TrianglesSolidUnlit))
 				return false;
 			if (TRIANGLE_GRADIENT != (optimPrimitive == PrimitiveType.TrianglesGradientUnlit))
@@ -1716,16 +1699,11 @@ public class MutationOptimizer : MonoBehaviour
 	{
 		if (doOptimPrimitive == true)
 		{
-			computeShader.DisableKeyword("NORMAL_POSITIONS");
-			computeShader.DisableKeyword("ALTERNATE_POSITIONS");
 			computeShader.DisableKeyword("TRIANGLE_SOLID");
 			computeShader.DisableKeyword("TRIANGLE_GRADIENT");
 			computeShader.DisableKeyword("TRIANGLE_GAUSSIAN");
 			computeShader.DisableKeyword("PER_VERTEX_ERROR");
 			computeShader.DisableKeyword("PER_TRIANGLE_ERROR");
-			if (useAlternateTriangleDefinition == false)
-				computeShader.EnableKeyword("NORMAL_POSITIONS");
-			if (useAlternateTriangleDefinition == true)
 				computeShader.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				computeShader.EnableKeyword("TRIANGLE_SOLID");
@@ -1776,16 +1754,11 @@ public class MutationOptimizer : MonoBehaviour
 
 		if (doOptimPrimitive == true)
 		{
-			material.DisableKeyword("NORMAL_POSITIONS");
-			material.DisableKeyword("ALTERNATE_POSITIONS");
 			material.DisableKeyword("TRIANGLE_SOLID");
 			material.DisableKeyword("TRIANGLE_GRADIENT");
 			material.DisableKeyword("TRIANGLE_GAUSSIAN");
 			material.DisableKeyword("PER_VERTEX_ERROR");
 			material.DisableKeyword("PER_TRIANGLE_ERROR");
-			if (useAlternateTriangleDefinition == false)
-				material.EnableKeyword("NORMAL_POSITIONS");
-			if (useAlternateTriangleDefinition == true)
 				material.EnableKeyword("ALTERNATE_POSITIONS");
 			if (optimPrimitive == PrimitiveType.TrianglesSolidUnlit)
 				material.EnableKeyword("TRIANGLE_SOLID");
@@ -2401,8 +2374,6 @@ public class MutationOptimizer : MonoBehaviour
 	public int GetPrimitiveFloatSize(PrimitiveType type)
 	{
 		int positionSize = 9;
-		if (useAlternateTriangleDefinition == true)
-			positionSize = 13;
 
 		int alphaSize = 0;
 		if (transparencyMode != TransparencyMode.None)
@@ -2532,39 +2503,19 @@ public class MutationOptimizer : MonoBehaviour
 			// Position
 			float initSizeToUse = primitiveInitSize * (initSizes.Length > 0 ? initSizes[i] : 1);
 			float3 randPos = positions[i];
-			if (useAlternateTriangleDefinition == true)
+			float3 position0 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+			float3 position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+			float3 position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
+			if (targetMode == TargetMode.Image)
 			{
-				// Position
-				randData[i * primitiveFloatSize + offset + 0] = randPos.x; randData[i * primitiveFloatSize + offset + 1] = randPos.y; randData[i * primitiveFloatSize + offset + 2] = randPos.z; offset += 3;
-
-				// Rotation
-				Quaternion randRot = UnityEngine.Random.rotationUniform;
-				randData[i * primitiveFloatSize + offset + 0] = randRot.x; randData[i * primitiveFloatSize + offset + 1] = randRot.y; randData[i * primitiveFloatSize + offset + 2] = randRot.z; randData[i * primitiveFloatSize + offset + 2] = randRot.w; offset += 4;
-
-				// Offsets
-				float2 position0 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
-				float2 position1 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
-				float2 position2 = new float2(UnityEngine.Random.insideUnitCircle.normalized) * initSizeToUse;
-				randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; offset += 2;
-				randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; offset += 2;
-				randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; offset += 2;
+				randPos.z = i / (float)primitiveCount; // Unique Z per triangle
+				position0 = new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+				position1 = new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
+				position2 = new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
 			}
-			else
-			{
-				float3 position0 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				float3 position1 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				float3 position2 = randPos + new float3(UnityEngine.Random.onUnitSphere) * initSizeToUse;
-				if (targetMode == TargetMode.Image)
-				{
-					randPos.z = i / (float)primitiveCount; // Unique Z per triangle
-					position0 = new float3(-initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					position1 = new float3(0.0f, initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-					position2 = new float3(initSizeToUse, -initSizeToUse, 0.0f) + (new float3(UnityEngine.Random.value, UnityEngine.Random.value, 0.0f) * 2.0f - 1.0f) * initSizeToUse * 0.5f;
-				}
-				randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; randData[i * primitiveFloatSize + offset + 2] = position0.z; offset += 3;
-				randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; randData[i * primitiveFloatSize + offset + 2] = position1.z; offset += 3;
-				randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; randData[i * primitiveFloatSize + offset + 2] = position2.z; offset += 3;
-			}
+			randData[i * primitiveFloatSize + offset + 0] = position0.x; randData[i * primitiveFloatSize + offset + 1] = position0.y; randData[i * primitiveFloatSize + offset + 2] = position0.z; offset += 3;
+			randData[i * primitiveFloatSize + offset + 0] = position1.x; randData[i * primitiveFloatSize + offset + 1] = position1.y; randData[i * primitiveFloatSize + offset + 2] = position1.z; offset += 3;
+			randData[i * primitiveFloatSize + offset + 0] = position2.x; randData[i * primitiveFloatSize + offset + 1] = position2.y; randData[i * primitiveFloatSize + offset + 2] = position2.z; offset += 3;
 
 			// Alpha
 			if (transparencyMode != TransparencyMode.None)

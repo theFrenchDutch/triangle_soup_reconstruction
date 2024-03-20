@@ -16,7 +16,6 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty colmapRescaler;
 	SerializedProperty colmapUseMasking;
 	SerializedProperty optimPrimitive;
-	SerializedProperty useAlternateTriangleDefinition;
 	SerializedProperty primitiveCount;
 	SerializedProperty primitiveInitSize;
 	SerializedProperty primitiveInitSeed;
@@ -67,13 +66,12 @@ public class MutationOptimizerEditor : Editor
 	SerializedProperty beta1;
 	SerializedProperty beta2;
 	SerializedProperty learningRatePosition;
-	SerializedProperty learningRateRotation;
-	SerializedProperty learningRateOffsets;
 	SerializedProperty learningRateColor;
 	SerializedProperty learningRateAlpha;
 	SerializedProperty learningRateEnvMap;
 	SerializedProperty structuralLossWeight;
 	SerializedProperty structuralLossDistFactor;
+	SerializedProperty structuralWeldDistFactor;
 
 	SerializedProperty doPrimitiveResampling;
 	SerializedProperty resamplingInterval;
@@ -101,7 +99,6 @@ public class MutationOptimizerEditor : Editor
 		colmapRescaler = serializedObject.FindProperty("colmapRescaler");
 		colmapUseMasking = serializedObject.FindProperty("colmapUseMasking");
 		optimPrimitive = serializedObject.FindProperty("optimPrimitive");
-		useAlternateTriangleDefinition = serializedObject.FindProperty("useAlternateTriangleDefinition");
 		primitiveCount = serializedObject.FindProperty("primitiveCount");
 		primitiveInitSize = serializedObject.FindProperty("primitiveInitSize");
 		primitiveInitSeed = serializedObject.FindProperty("primitiveInitSeed");
@@ -152,13 +149,12 @@ public class MutationOptimizerEditor : Editor
 		beta1 = serializedObject.FindProperty("beta1");
 		beta2 = serializedObject.FindProperty("beta2");
 		learningRatePosition = serializedObject.FindProperty("learningRatePosition");
-		learningRateRotation = serializedObject.FindProperty("learningRateRotation");
-		learningRateOffsets = serializedObject.FindProperty("learningRateOffsets");
 		learningRateColor = serializedObject.FindProperty("learningRateColor");
 		learningRateAlpha = serializedObject.FindProperty("learningRateAlpha");
 		learningRateEnvMap = serializedObject.FindProperty("learningRateEnvMap");
 		structuralLossWeight = serializedObject.FindProperty("structuralLossWeight");
 		structuralLossDistFactor = serializedObject.FindProperty("structuralLossDistFactor");
+		structuralWeldDistFactor = serializedObject.FindProperty("structuralWeldDistFactor");
 
 		doPrimitiveResampling = serializedObject.FindProperty("doPrimitiveResampling");
 		resamplingInterval = serializedObject.FindProperty("resamplingInterval");
@@ -253,7 +249,6 @@ public class MutationOptimizerEditor : Editor
 			EditorGUILayout.PropertyField(colmapUseMasking);
 		}
 		EditorGUILayout.PropertyField(optimPrimitive);
-		EditorGUILayout.PropertyField(useAlternateTriangleDefinition);
 		EditorGUILayout.PropertyField(primitiveInitSeed);
 		if (optimPrimitive.enumValueIndex == 0 || optimPrimitive.enumValueIndex == 1 || optimPrimitive.enumValueIndex == 2)
 		{
@@ -347,11 +342,6 @@ public class MutationOptimizerEditor : Editor
 		EditorGUILayout.PropertyField(beta1);
 		EditorGUILayout.PropertyField(beta2);
 		EditorGUILayout.PropertyField(learningRatePosition);
-		if (useAlternateTriangleDefinition.boolValue == true)
-		{
-			EditorGUILayout.PropertyField(learningRateRotation);
-			EditorGUILayout.PropertyField(learningRateOffsets);
-		}
 		EditorGUILayout.PropertyField(learningRateColor);
 		if ((transparencyMode.enumValueIndex != 0 || optimPrimitive.enumValueIndex == 3) && optimPrimitive.enumValueIndex != 6)
 			EditorGUILayout.PropertyField(learningRateAlpha);
@@ -361,6 +351,10 @@ public class MutationOptimizerEditor : Editor
 		{
 			EditorGUILayout.PropertyField(structuralLossWeight);
 			EditorGUILayout.PropertyField(structuralLossDistFactor);
+		}
+		if (doStructuralWelding.boolValue == true)
+		{
+			EditorGUILayout.PropertyField(structuralWeldDistFactor);
 		}
 
 		// Resampling settings
