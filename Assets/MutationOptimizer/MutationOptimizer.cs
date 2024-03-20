@@ -1311,12 +1311,14 @@ public class MutationOptimizer : MonoBehaviour
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
 
 		// Weld vertices together
-		int kernelToUse2 = kernelWeldVertices;
-		mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
-		mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
-		mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
-		DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
-
+		if (doStructuralWelding == true)
+		{
+			int kernelToUse2 = kernelWeldVertices;
+			mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
+			mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+			mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
+			DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
+		}
 	}
 
 
