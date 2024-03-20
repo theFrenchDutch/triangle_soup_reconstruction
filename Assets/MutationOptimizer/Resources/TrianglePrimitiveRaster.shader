@@ -48,9 +48,7 @@ Shader "Custom/TrianglePrimitiveRaster"
 			Varyings Vertex(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
 			{
 				// Retrieve vertex attributes
-				int globalVertexID = instanceID * 3 + vertexID;
-				float3 worldPos = GetWorldVertex(globalVertexID);
-				vertexID = globalVertexID % 3;
+				float3 worldPos = _PrimitiveBuffer[instanceID].geometry.positions[vertexID];
 
 				// Camera projection
 				float4 clipPos = mul(_CameraMatrixVP, float4(worldPos, 1));

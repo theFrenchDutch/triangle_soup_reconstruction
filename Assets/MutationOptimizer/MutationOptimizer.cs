@@ -118,8 +118,6 @@ public class MutationOptimizer : MonoBehaviour
 	private TransparencyMode setTransparencyMode = TransparencyMode.None;
 	private int setMaxFragmentsPerPixel = -1;
 	[HideInInspector] public bool dummy = true;
-	private bool[] primitiveBufferDirty;
-	private bool[] primitiveBufferMutatedDirty;
 	public bool needsToDoublePrimitives = false;
 
 	// ======================= INTERFACE =======================
@@ -256,8 +254,6 @@ public class MutationOptimizer : MonoBehaviour
 		primitiveBufferMutated = new ComputeBuffer[primitiveGroupCount];
 		optimStepMutationError = new ComputeBuffer[primitiveGroupCount];
 		optimStepCounterBuffer = new ComputeBuffer[primitiveGroupCount];
-		primitiveBufferDirty = new bool[primitiveGroupCount];
-		primitiveBufferMutatedDirty = new bool[primitiveGroupCount];
 
 		needsToDoublePrimitives = false;
 
@@ -997,9 +993,6 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveOptimStepCounter", optimStepCounterBuffer[primitiveGroupToUse]);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
-
-		// Special Mesh and SVBRDF handling
-		primitiveBufferDirty[primitiveGroupToUse] = true;
 	}
 
 	public void CreateNewRandomMutation(int primitiveGroupToUse)
@@ -1012,8 +1005,11 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBufferMutated" + suffix, primitiveBufferMutated[primitiveGroupToUse]);
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[primitiveGroupToUse].count, 256);
 
-		// Special Mesh and SVBRDF handling
-		primitiveBufferMutatedDirty[primitiveGroupToUse] = true;
+		// Apply vertex welding indirection
+		if (doStructuralWelding == true && primitiveGroupToUse == 0)
+		{
+			ApplyVertexWeldingIndirection(primitiveBufferMutated[0]);
+		}
 	}
 
 	public void PerformPrimitiveResampling(int primitiveGroupToUse)
@@ -1296,17 +1292,23 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetFloat("_DoVertexWelding", doStructuralWelding == true ? 1.0f : 0.0f);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBuffer[0]);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
 		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBuffer[0].count, 256);
 
-		// Weld vertices together
-		//if (doStructuralWelding == true)
-		//{
-		//	int kernelToUse2 = kernelWeldVertices;
-		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_PrimitiveBuffer", primitiveBuffer[0]);
-		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
-		//	mutationOptimizerCS.SetBuffer(kernelToUse2, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
-		//	DispatchCompute1D(mutationOptimizerCS, kernelToUse2, primitiveBuffer[0].count, 256);
-		//}
+		// Apply vertex welding indirection
+		if (doStructuralWelding == true)
+		{
+			ApplyVertexWeldingIndirection(primitiveBuffer[0]);
+		}
+	}
+
+	public void ApplyVertexWeldingIndirection(ComputeBuffer primitiveBufferToUse)
+	{
+		int kernelToUse = kernelWeldVertices;
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBufferToUse);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
+		DispatchCompute1D(mutationOptimizerCS, kernelToUse, primitiveBufferToUse.count, 256);
 	}
 
 

@@ -317,44 +317,23 @@ void GetGeometryLearningRatesFloatArray(inout float asArray[PRIMITIVE_SIZE], ino
 	asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition; asArray[offset++] = _LearningRatePosition;
 }
 
-float3 GetWorldVertex(StructuredBuffer<PrimitiveData> primitiveBuffer, StructuredBuffer<int> weldingBuffer, inout int globalVertexID)
+float3 GetWorldVertex(Geometry geometry, int i)
 {
-	// Apply vertex welding indirection
-	int primitiveID = globalVertexID / 3;
-	int vertexID = globalVertexID % 3;
-	if (_DoVertexWelding > 0.5)
-	{
-		int temp = weldingBuffer[i];
-		globalVertexID = temp;
-		primitiveID = temp / 3;
-		vertexID = temp % 3;
-	}
-	Geometry geometry = primitiveBuffer[primitiveID];
-	return geometry.positions[vertexID];
+	return geometry.positions[i];
 }
 
-float GetTriangleArea(StructuredBuffer<PrimitiveData> primitiveBuffer, StructuredBuffer<int> weldingBuffer, int primitiveID)
+float GetTriangleArea(Geometry geometry)
 {
-	float3 v0 = GetWorldVertex(primitiveID * 3 + 0);
-	float3 v1 = GetWorldVertex(primitiveID * 3 + 1);
-	float3 v2 = GetWorldVertex(primitiveID * 3 + 2);
-	return Unsigned3DTriangleArea(v0, v1, v2);
+	return Unsigned3DTriangleArea(geometry.positions[0], geometry.positions[1], geometry.positions[2]);
 }
 
 float3 GetPrimitiveWorldDepthSortPosition(Geometry geometry)
 {
-	float3 v0 = GetWorldVertex(primitiveID * 3 + 0);
-	float3 v1 = GetWorldVertex(primitiveID * 3 + 1);
-	float3 v2 = GetWorldVertex(primitiveID * 3 + 2);
-	return (v0 + v1 + v2) / 3.0;
+	return (geometry.positions[0] + geometry.positions[1] + geometry.positions[2]) / 3.0;
 }
 
 Geometry PostProcessGeometry(Geometry geometry)
 {
-#ifdef ALTERNATE_POSITIONS
-	geometry.rotation = normalize(geometry.rotation);
-#endif
-
 	return geometry;
 }
 
