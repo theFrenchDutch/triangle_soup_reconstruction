@@ -938,6 +938,7 @@ public class MutationOptimizer : MonoBehaviour
 		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedMinus", resolvedFrameMutatedMinus);
 		mutationOptimizerCS.SetTexture(kernelToUse, "_ResolvedFrameMutatedPlus", resolvedFrameMutatedPlus);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveMutationError", optimStepMutationError[primitiveGroupToUse]);
+		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
 		if (transparencyMode == TransparencyMode.None)
 		{
 			mutationOptimizerCS.SetTexture(kernelToUse, "_DepthIDBufferMutatedMinus", optimRenderTargetMutatedMinus);

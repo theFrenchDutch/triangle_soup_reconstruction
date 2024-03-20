@@ -160,15 +160,15 @@ MonoBehaviour:
   dummy: 1
   needsToDoublePrimitives: 1
   targetResolution: {x: 1024, y: 1024}
-  targetMode: 2
+  targetMode: 1
   target2DImage: {fileID: 2800000, guid: 06dca4b160717ba4c87c7113aa1923d7, type: 3}
   target3DMesh: {fileID: 625167293}
   target3DCOLMAPFolder: lego_upper
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  primitiveCount: 25000
-  primitiveInitSize: 0.01
+  primitiveCount: 10
+  primitiveInitSize: 0.5
   primitiveInitSeed: 0
   initPrimitivesOnMeshSurface: 0
   colmapUseCameraBounds: 0
@@ -201,7 +201,7 @@ MonoBehaviour:
   gradientsWarmupSteps: 16
   optimResolutionFactor: 1
   trianglePerVertexError: 1
-  pixelCountNormalization: 1
+  pixelCountNormalization: 0
   doAlphaLoss: 1
   doStructuralLoss: 1
   doStructuralWelding: 1
@@ -218,9 +218,9 @@ MonoBehaviour:
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
   structuralLossWeight: 0.75
-  structuralLossDistFactor: 1
-  structuralWeldDistFactor: 0.1
-  doPrimitiveResampling: 1
+  structuralLossDistFactor: 2
+  structuralWeldDistFactor: 1
+  doPrimitiveResampling: 0
   resamplingInterval: 25
   optimStepsUnseenBeforeKill: 2
   minPrimitiveWorldArea: 0.0001
@@ -662,8 +662,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.000051780757, y: -0.9997159, z: -0.023734173, w: -0.0021810764}
-  m_LocalPosition: {x: -0.009156346, y: -0.09969476, z: 2.0984366}
+  m_LocalRotation: {x: -0.08311779, y: -0.8569027, z: 0.14616525, w: -0.48728317}
+  m_LocalPosition: {x: -1.8737072, y: 0.7660713, z: 1.1147386}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -689,7 +689,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 23f4784fc4d54e64a8513591b72093cb, type: 3}
   m_Name: 

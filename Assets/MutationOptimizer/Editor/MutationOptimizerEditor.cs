@@ -213,6 +213,9 @@ public class MutationOptimizerEditor : Editor
 
 		if (targetMode.enumValueIndex == 0)
 			viewsPerOptimStep.intValue = 1;
+
+		if (doStructuralWelding.boolValue == true)
+			trianglePerVertexError.boolValue = true;
 	}
 
 	public override void OnInspectorGUI()
