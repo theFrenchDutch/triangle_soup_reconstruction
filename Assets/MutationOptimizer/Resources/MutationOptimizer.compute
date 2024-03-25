@@ -1,4 +1,5 @@
-﻿#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
+﻿#pragma use_dxc
+#pragma multi_compile TRIANGLE_SOLID TRIANGLE_GRADIENT TRIANGLE_GAUSSIAN
 #pragma multi_compile OPAQUE_RENDER SORTED_ALPHA_RENDER STOCHASTIC_ALPHA_RENDER
 #pragma multi_compile SINGLE_COLOR SPHERICAL_HARMONICS_2 SPHERICAL_HARMONICS_3 SPHERICAL_HARMONICS_4
 #pragma multi_compile PER_VERTEX_ERROR PER_TRIANGLE_ERROR
@@ -209,7 +210,7 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss * 1;
 	float lossDiffFloat = lossMinus - lossPlus;
 
-	int lossDiff = lossDiffFloat * 65536 * 0;
+	int lossDiff = lossDiffFloat * 65536 * 1;
 	if (lossDiff == 0)
 		return;
 
@@ -604,9 +605,8 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 			for (int i = 0; i < 3; i++)
 			{
 				// Continue if edge isn't available
-				if (edgeConnectedTriangles[i] >= 0) // Already welded edge
-					continue;
-
+				//if (edgeConnectedTriangles[i] >= 0) // Already welded edge
+				//	continue;
 				int2 tempClosestPair0 = int2((i + 0) % 3, -1);
 				int2 tempClosestPair1 = int2((i + 1) % 3, -1);
 				float3 currentPosA = currentPositions[tempClosestPair0.x];
@@ -614,10 +614,9 @@ void AccumulateStructuralLossForPixel(uint2 pixelCoord, uint flatPixelCoord, Tex
 				for (int j = 0; j < 3; j++)
 				{
 					// Continue if edge isn't available
-					int otherWeldedEdgeID = _StructuralEdgeClosestNeighbourBuffer[otherPrimitiveID * 3 + j];
-					if (otherWeldedEdgeID >= 0) // Already welded edge
-						continue;
-
+					//int otherWeldedEdgeID = _StructuralEdgeClosestNeighbourBuffer[otherPrimitiveID * 3 + j];
+					//if (otherWeldedEdgeID >= 0) // Already welded edge
+					//	continue;
 					tempClosestPair0.y = (j + 0) % 3;
 					tempClosestPair1.y = (j + 1) % 3;
 					float3 otherPosA = otherPositions[tempClosestPair0.y];
