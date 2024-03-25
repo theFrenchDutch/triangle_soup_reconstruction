@@ -1559,7 +1559,7 @@ public class MutationOptimizer : MonoBehaviour
 		ZeroInitBuffer(optimStepCounterBuffer[0]);
 
 		// Structural loss mode
-		if (doStructuralLoss == true)
+		if (doStructuralLoss == true || doStructuralWelding == true)
 		{
 			ulong[] temp0 = new ulong[primitiveCount * 3];
 			for (int i = 0; i < primitiveCount * 3; i++)

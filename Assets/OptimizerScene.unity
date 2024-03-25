@@ -167,10 +167,10 @@ MonoBehaviour:
   colmapRescaler: 1
   colmapUseMasking: 0
   optimPrimitive: 0
-  primitiveCount: 10
+  primitiveCount: 5
   primitiveInitSize: 0.5
   primitiveInitSeed: 0
-  initPrimitivesOnMeshSurface: 0
+  initPrimitivesOnMeshSurface: 1
   colmapUseCameraBounds: 0
   colmapOnePrimitivePerInitPoint: 0
   colmapUseInitPointDistances: 0
@@ -203,7 +203,7 @@ MonoBehaviour:
   trianglePerVertexError: 1
   pixelCountNormalization: 0
   doAlphaLoss: 1
-  doStructuralLoss: 1
+  doStructuralLoss: 0
   doStructuralWelding: 1
   doAllInputFramesForEachOptimStep: 0
   viewsPerOptimStep: 32
@@ -217,8 +217,8 @@ MonoBehaviour:
   learningRateColor: 0.01
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
-  structuralLossWeight: 0.75
-  structuralLossDistFactor: 2
+  structuralLossWeight: 0.85
+  structuralLossDistFactor: 1.5
   structuralWeldDistFactor: 1
   doPrimitiveResampling: 0
   resamplingInterval: 25
@@ -689,7 +689,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 23f4784fc4d54e64a8513591b72093cb, type: 3}
   m_Name: 
