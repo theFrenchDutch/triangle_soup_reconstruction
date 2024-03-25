@@ -191,7 +191,7 @@ MonoBehaviour:
   stepForward: 0
   displayMode: 0
   separateFreeViewCamera: 1
-  debugTriangleView: 0
+  debugTriangleView: 1
   lrGlobalStartMulAndSpeed: {x: 0, y: 0}
   lrGeometryStartMulAndSpeed: {x: 0, y: 0}
   primitiveDoublingCountAndInterval: {x: 0, y: 0}
@@ -218,7 +218,7 @@ MonoBehaviour:
   learningRateAlpha: 0
   learningRateEnvMap: 0.01
   structuralLossWeight: 0.75
-  structuralLossDistFactor: 1
+  structuralLossDistFactor: 1.5
   structuralWeldDistFactor: 0.05
   doPrimitiveResampling: 0
   resamplingInterval: 25
