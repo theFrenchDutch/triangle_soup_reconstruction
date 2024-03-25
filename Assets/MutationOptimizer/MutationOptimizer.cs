@@ -89,10 +89,8 @@ public class MutationOptimizer : MonoBehaviour
 	private int kernelAccumulateMutationGradientsResetLoss;
 	private int kernelApplyRandomMutation;
 	private int kernelCreateNewRandomMutation;
-	private int kernelMaintainClosestEdgeNeighbours;
-	private int kernelUpdateClosestEdgeNeighbours;
+	private int kernelMaintainStructuralWelding;
 	private int kernelAccumulateMutationLossStructural;
-	private int kernelWeldVertices;
 	private int kernelEnvMapResetMutationLossAccumulation;
 	private int kernelEnvMapAccumulateMutationLoss;
 	private int kernelEnvMapAccumulateMutationGradientsResetLoss;
@@ -229,10 +227,8 @@ public class MutationOptimizer : MonoBehaviour
 		kernelAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("AccumulateMutationGradientsResetLoss");
 		kernelApplyRandomMutation = mutationOptimizerCS.FindKernel("ApplyRandomMutation");
 		kernelCreateNewRandomMutation = mutationOptimizerCS.FindKernel("CreateNewRandomMutation");
-		//kernelMaintainClosestEdgeNeighbours = mutationOptimizerCS.FindKernel("MaintainClosestEdgeNeighbours");
-		//kernelUpdateClosestEdgeNeighbours = mutationOptimizerCS.FindKernel("UpdateClosestEdgeNeighbours");
+		kernelMaintainStructuralWelding = mutationOptimizerCS.FindKernel("MaintainStructuralWelding");
 		kernelAccumulateMutationLossStructural = mutationOptimizerCS.FindKernel("AccumulateMutationLossStructural");
-		kernelWeldVertices = mutationOptimizerCS.FindKernel("WeldVertices");
 		kernelEnvMapAccumulateMutationLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationLoss");
 		kernelEnvMapAccumulateMutationGradientsResetLoss = mutationOptimizerCS.FindKernel("EnvMapAccumulateMutationGradientsResetLoss");
 		kernelEnvMapApplyRandomMutation = mutationOptimizerCS.FindKernel("EnvMapApplyRandomMutation");
@@ -987,7 +983,7 @@ public class MutationOptimizer : MonoBehaviour
 
 		// Apply vertex welding indirection
 		if (doStructuralWelding == true && primitiveGroupToUse == 0)
-			ApplyVertexWeldingIndirection(primitiveBuffer[0]);
+			MaintainStructuralWelding(primitiveBuffer[0]);
 	}
 
 	public void CreateNewRandomMutation(int primitiveGroupToUse)
@@ -1002,7 +998,7 @@ public class MutationOptimizer : MonoBehaviour
 
 		// Apply vertex welding indirection
 		if (doStructuralWelding == true && primitiveGroupToUse == 0)
-			ApplyVertexWeldingIndirection(primitiveBufferMutated[0]);
+			MaintainStructuralWelding(primitiveBufferMutated[0]);
 	}
 
 	public void PerformPrimitiveResampling(int primitiveGroupToUse)
@@ -1278,9 +1274,9 @@ public class MutationOptimizer : MonoBehaviour
 		ResetKeywords(adaptiveTriangleBlurMaterial, true, true, true);
 	}
 
-	public void ApplyVertexWeldingIndirection(ComputeBuffer primitiveBufferToUse)
+	public void MaintainStructuralWelding(ComputeBuffer primitiveBufferToUse)
 	{
-		int kernelToUse = kernelWeldVertices;
+		int kernelToUse = kernelMaintainStructuralWelding;
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_PrimitiveBuffer", primitiveBufferToUse);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralEdgeClosestNeighbourBuffer", structuralEdgeClosestNeighbourBuffer);
 		mutationOptimizerCS.SetBuffer(kernelToUse, "_StructuralVertexWeldingBuffer", structuralVertexWeldingBuffer);
@@ -1537,10 +1533,10 @@ public class MutationOptimizer : MonoBehaviour
 		// Structural loss mode
 		if (doStructuralLoss == true || doStructuralWelding == true)
 		{
-			ulong[] temp0 = new ulong[primitiveCount * 3];
+			int[] temp0 = new int[primitiveCount * 3];
 			for (int i = 0; i < primitiveCount * 3; i++)
-				temp0[i] = ulong.MaxValue;
-			structuralEdgeClosestNeighbourBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(ulong));
+				temp0[i] = -1;
+			structuralEdgeClosestNeighbourBuffer = new ComputeBuffer(primitiveCount * 3, sizeof(int));
 			structuralEdgeClosestNeighbourBuffer.SetData(temp0);
 
 			int[] temp1 = new int[primitiveCount * 3];

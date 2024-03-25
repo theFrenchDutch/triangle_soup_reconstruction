@@ -10,8 +10,8 @@
 #pragma kernel ApplyRandomMutation
 #pragma kernel CreateNewRandomMutation
 
+#pragma kernel MaintainStructuralWelding
 #pragma kernel AccumulateMutationLossStructural
-#pragma kernel WeldVertices
 
 #pragma kernel EnvMapResetMutationLossAccumulation
 #pragma kernel EnvMapAccumulateMutationLoss
@@ -67,7 +67,7 @@ RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsOptimStep;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments1;
 RWStructuredBuffer<PrimitiveData> _PrimitiveGradientsMoments2;
 RWStructuredBuffer<int> _PrimitiveOptimStepCounter;
-//RWStructuredBuffer<uint64_t> _StructuralEdgeClosestNeighbourBuffer;
+RWStructuredBuffer<int> _StructuralEdgeClosestNeighbourBuffer;
 RWStructuredBuffer<int> _StructuralVertexWeldingBuffer;
 
 int _CurrentPairingOffset;
@@ -209,7 +209,7 @@ void AccumulateMutationLoss(uint3 threadID : SV_DispatchThreadID)
 	float lossPlus = lossPlusRGBA.x + lossPlusRGBA.y + lossPlusRGBA.z + lossPlusRGBA.a * _DoAlphaLoss * 1;
 	float lossDiffFloat = lossMinus - lossPlus;
 
-	int lossDiff = lossDiffFloat * 65536 * 1;
+	int lossDiff = lossDiffFloat * 65536 * 0;
 	if (lossDiff == 0)
 		return;
 
@@ -513,7 +513,7 @@ float VertexLossFunction(float distance, float gaussParam)
 }
 
 [numthreads(256, 1, 1)]
-void WeldVertices(uint3 id : SV_DispatchThreadID)
+void MaintainStructuralWelding(uint3 id : SV_DispatchThreadID)
 {
 	uint threadID = id.x + _Dispatch1DOffset;
 	if (threadID >= _PrimitiveCount)
